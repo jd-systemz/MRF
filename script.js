@@ -467,7 +467,7 @@ submitAllBtn.addEventListener('click', async function () {
     if (res.error) throw new Error(res.error);
 
     msg.className = 'msg success';
-    msg.innerHTML = 'Submitted as <strong>MRF# ' + escapeHtml(res.mrfNumber) + '</strong> — ' + res.count + ' item(s) saved.';
+    msg.innerHTML = 'Submitted as <strong>' + escapeHtml(res.mrfNumber) + '</strong> — ' + res.count + ' item(s) saved.';
     if (res.sheetUrl) {
       msg.innerHTML += ' <a href="' + res.sheetUrl + '" target="_blank" rel="noopener" class="sheet-link-inline">View in Smartsheet &#8599;</a>';
     }
