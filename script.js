@@ -234,6 +234,197 @@ addItemBtn.addEventListener('click', function () {
   itemRequestedInput.focus();
 });
 
+// ===================== PRINTABLE MRF PDF =====================
+// Draws the exact printed "MATERIAL REQUEST FORM" layout (title bar, the
+// two-column field block, the material/inventory/end-user table, and the
+// signature footer) and auto-downloads it right after a successful submit.
+// Release / Request / Receiver columns and Checked By / Approved By lines
+// are intentionally left blank — they're filled in by hand later. Purpose
+// is always "Req. Materials" since this form only ever requests materials.
+
+function formatDateDisplay_(iso) {
+  if (!iso) return '';
+  const parts = iso.split('-');
+  if (parts.length !== 3) return iso;
+  return parts[1] + '/' + parts[2] + '/' + parts[0];
+}
+
+function buildAndDownloadMrfPdf_(payload, res) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  const margin = 10;
+  const pageW = doc.internal.pageSize.getWidth();
+  const contentW = pageW - margin * 2;
+  let y = margin;
+
+  // ---- MRF# (top right) ----
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(0, 0, 0);
+  doc.text('MRF#', pageW - margin - 38, y + 5);
+  doc.setTextColor(200, 0, 0);
+  doc.text(String(res.mrfNumber), pageW - margin - 22, y + 5);
+  doc.setTextColor(0, 0, 0);
+  y += 9;
+
+  // ---- Title bar ----
+  doc.setFillColor(0, 0, 0);
+  doc.rect(margin, y, contentW, 9, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(15);
+  doc.text('MATERIAL REQUEST FORM', pageW / 2, y + 6.3, { align: 'center' });
+  doc.setTextColor(0, 0, 0);
+  y += 9 + 3;
+
+  // ---- Two-column field block ----
+  const rowH = 8;
+  const leftLabelX = margin;
+  const leftLineX1 = margin + 30;
+  const leftLineX2 = margin + contentW / 2 - 6;
+  const rightLabelX = margin + contentW / 2 + 4;
+  const rightLineX1 = rightLabelX + 42;
+  const rightLineX2 = margin + contentW;
+
+  function drawFieldRow(labelX, lineX1, lineX2, rowY, label, value) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text(label, labelX, rowY + 5.5);
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.25);
+    doc.line(lineX1, rowY + 6.2, lineX2, rowY + 6.2);
+    if (value) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.text(String(value), lineX1 + 1, rowY + 5.3);
+    }
+  }
+
+  const leftFields = [
+    ['DATE:', formatDateDisplay_(payload.date)],
+    ['DEPARTMENT', payload.requestor],
+    ['PURPOSE:', 'Req. Materials'],
+    ['LOB:', payload.lob]
+  ];
+  const rightFields = [
+    ['PROJECT NAME:', payload.projectName],
+    ['SALES ORDER:', payload.soNumber],
+    ['PROCUREMENT DEADLINE', formatDateDisplay_(payload.procurementDeadline)],
+    ['PRODUCTION DEADLINE:', formatDateDisplay_(payload.productionDeadline)]
+  ];
+  for (let i = 0; i < 4; i++) {
+    const rowY = y + i * rowH;
+    drawFieldRow(leftLabelX, leftLineX1, leftLineX2, rowY, leftFields[i][0], leftFields[i][1]);
+    drawFieldRow(rightLabelX, rightLineX1, rightLineX2, rowY, rightFields[i][0], rightFields[i][1]);
+  }
+  y += 4 * rowH + 3;
+
+  // ---- Item table ----
+  // Proportions taken from the original form; scaled to whatever the page's
+  // content width actually is, so the table always fits edge-to-edge.
+  const colFractions = [20, 20, 30, 110, 25, 25, 33.4]; // Qty, UOM, Size, Item Description, Release, Request, Receiver
+  const fractionSum = colFractions.reduce(function (a, b) { return a + b; }, 0);
+  const colWidths = colFractions.map(function (f) { return (contentW * f) / fractionSum; });
+  const colX = [margin];
+  for (let i = 0; i < colWidths.length; i++) colX.push(colX[i] + colWidths[i]);
+
+  const h1 = 7;
+  doc.setDrawColor(0);
+  doc.setLineWidth(0.25);
+  doc.setTextColor(200, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+
+  // Row 1: MATERIAL DESCRIPTION / INVENTORY / END USER spans
+  const span1W = colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
+  const span2W = colWidths[4] + colWidths[5];
+  const span3W = colWidths[6];
+  doc.rect(colX[0], y, span1W, h1);
+  doc.text('MATERIAL DESCRIPTION', colX[0] + span1W / 2, y + 5, { align: 'center' });
+  doc.rect(colX[4], y, span2W, h1);
+  doc.text('INVENTORY', colX[4] + span2W / 2, y + 5, { align: 'center' });
+  doc.rect(colX[6], y, span3W, h1);
+  doc.text('END USER', colX[6] + span3W / 2, y + 5, { align: 'center' });
+  y += h1;
+
+  // Row 2: column headers
+  const headers = ['QUANTITY', 'UOM', 'SIZE', 'ITEM DESCRIPTION', 'RELEASE', 'REQUEST', 'RECEIVER'];
+  const h2 = 7;
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(7.5);
+  headers.forEach(function (h, i) {
+    doc.rect(colX[i], y, colWidths[i], h2);
+    doc.text(h, colX[i] + colWidths[i] / 2, y + 4.8, { align: 'center' });
+  });
+  y += h2;
+
+  // Item rows — Release / Request / Receiver stay blank.
+  const footerReserve = 42;
+  const pageH = doc.internal.pageSize.getHeight();
+  const availableH = pageH - footerReserve - y;
+  const itemRowH = Math.max(6, Math.min(9, availableH / Math.max(payload.items.length, 1)));
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  payload.items.forEach(function (it) {
+    headers.forEach(function (h, i) { doc.rect(colX[i], y, colWidths[i], itemRowH); });
+    doc.text(String(it.qty), colX[0] + colWidths[0] / 2, y + itemRowH / 2 + 1.2, { align: 'center' });
+    doc.text(String(it.uom || ''), colX[1] + colWidths[1] / 2, y + itemRowH / 2 + 1.2, { align: 'center' });
+    doc.text(String(it.size || ''), colX[2] + colWidths[2] / 2, y + itemRowH / 2 + 1.2, { align: 'center' });
+    doc.text(String(it.itemRequested), colX[3] + 2, y + itemRowH / 2 + 1.2, { align: 'left' });
+    y += itemRowH;
+  });
+
+  // ---- Footer / signatures ----
+  y = pageH - footerReserve + 6;
+  const fLeftLabelX = margin;
+  const fLeftLineX1 = margin + 30;
+  const fLeftLineX2 = margin + contentW * 0.42;
+  const fRightLabelX = margin + contentW * 0.55;
+  const fRightLineX1 = fRightLabelX + 26;
+  const fRightLineX2 = margin + contentW;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(0, 0, 0);
+  doc.text('REQUESTED BY:', fLeftLabelX, y);
+  doc.line(fLeftLineX1, y + 0.8, fLeftLineX2, y + 0.8);
+  doc.setFont('helvetica', 'bold');
+  doc.text(String(payload.requestedBy || ''), fLeftLineX1 + 1, y - 0.8);
+
+  doc.text('CHECKED BY:', fRightLabelX, y);
+  doc.line(fRightLineX1, y + 0.8, fRightLineX2, y + 0.8);
+
+  y += 8;
+  doc.setFontSize(8);
+  doc.setTextColor(200, 0, 0);
+  doc.text('SUPERVISOR/ MANAGER', fLeftLabelX, y);
+  doc.setTextColor(200, 0, 0);
+  doc.text('INVENTORY PERSONNEL', fRightLabelX, y);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'normal');
+  doc.text('NAME AND SIGNATURES', (fLeftLineX1 + fLeftLineX2) / 2, y, { align: 'center' });
+  doc.text('NAME AND SIGNATURES', (fRightLineX1 + fRightLineX2) / 2, y, { align: 'center' });
+
+  y += 10;
+  const aLabelX = margin + contentW * 0.34;
+  const aLineX1 = aLabelX + 28;
+  const aLineX2 = margin + contentW * 0.75;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.text('APPROVED BY:', aLabelX, y);
+  doc.line(aLineX1, y + 0.8, aLineX2, y + 0.8);
+
+  y += 8;
+  doc.setFontSize(8);
+  doc.setTextColor(200, 0, 0);
+  doc.text('OIC SUPERVISOR', aLabelX, y);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'normal');
+  doc.text('NAME AND SIGNATURES', (aLineX1 + aLineX2) / 2, y, { align: 'center' });
+
+  doc.save(res.mrfNumber + '.pdf');
+}
+
 // ===================== SUBMIT (ONE MRF# FOR THE WHOLE BATCH) =====================
 
 submitAllBtn.addEventListener('click', async function () {
@@ -279,6 +470,12 @@ submitAllBtn.addEventListener('click', async function () {
     msg.innerHTML = 'Submitted as <strong>MRF# ' + escapeHtml(res.mrfNumber) + '</strong> — ' + res.count + ' item(s) saved.';
     if (res.sheetUrl) {
       msg.innerHTML += ' <a href="' + res.sheetUrl + '" target="_blank" rel="noopener" class="sheet-link-inline">View in Smartsheet &#8599;</a>';
+    }
+
+    try {
+      buildAndDownloadMrfPdf_(payload, res);
+    } catch (pdfErr) {
+      msg.innerHTML += '<br><span class="hint">(PDF download failed: ' + escapeHtml(pdfErr.message || String(pdfErr)) + ')</span>';
     }
 
     // Reset everything for the next request.
