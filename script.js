@@ -384,12 +384,14 @@ function buildAndDownloadMrfPdf_(payload, res) {
   // if this batch has fewer items than that — the extra rows stay blank
   // rather than shrinking the table down to just the filled rows.
   // Item description text uses FONT_ITEMS (Arial stand-in).
+  // Row height is fixed (not stretched to fill the page) so the form stays
+  // compact like the original single-sheet layout, with the rest of the
+  // page left blank below the signature block instead of the table
+  // ballooning to cover the full sheet.
   const MIN_TABLE_ROWS = 12;
-  const footerReserve = 42;
-  const pageH = doc.internal.pageSize.getHeight();
+  const ITEM_ROW_H = 7; // mm, fixed
   const totalRows = Math.max(payload.items.length, MIN_TABLE_ROWS);
-  const availableH = pageH - footerReserve - y;
-  const itemRowH = Math.max(6, Math.min(12, availableH / totalRows));
+  const itemRowH = ITEM_ROW_H;
   doc.setFont(FONT_ITEMS, 'normal');
   doc.setFontSize(9);
   for (let r = 0; r < totalRows; r++) {
@@ -405,7 +407,7 @@ function buildAndDownloadMrfPdf_(payload, res) {
   }
 
   // ---- Footer / signatures ----
-  y = pageH - footerReserve + 6;
+  y += 16; // fixed gap below the table, then the form ends — no bottom-pinning
   const fLeftLabelX = margin;
   const fLeftLineX1 = margin + 30;
   const fLeftLineX2 = margin + contentW * 0.42;
