@@ -348,7 +348,7 @@ function buildAndDownloadMrfPdf_(payload, res) {
   y += h1;
 
   // Row 2: column headers
-  const headers = ['QUANTITY', 'UOM', 'SIZE', 'ITEM DESCRIPTION', 'RELEASE', 'REQUEST', 'RECEIVER'];
+  const headers = ['QTY', 'UOM', 'SIZE', 'ITEM DESCRIPTION', 'RELEASE', 'REQUEST', 'RECEIVER'];
   const h2 = 7;
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(7.5);
