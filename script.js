@@ -302,14 +302,14 @@ function buildAndDownloadMrfPdf_(payload, res) {
 
   const leftFields = [
     ['DATE:', formatDateDisplay_(payload.date)],
-    ['DEPARTMENT', payload.requestor],
-    ['PURPOSE:', 'Req. Materials'],
+    ['DEPARTMENT:', payload.requestor],
+    ['PURPOSE:', 'REQ. MATERIAL'],
     ['LOB:', payload.lob]
   ];
   const rightFields = [
     ['PROJECT NAME:', payload.projectName],
     ['SALES ORDER:', payload.soNumber],
-    ['PROCUREMENT DEADLINE', formatDateDisplay_(payload.procurementDeadline)],
+    ['PROCUREMENT DEADLINE:', formatDateDisplay_(payload.procurementDeadline)],
     ['PRODUCTION DEADLINE:', formatDateDisplay_(payload.productionDeadline)]
   ];
   for (let i = 0; i < 4; i++) {
