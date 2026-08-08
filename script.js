@@ -222,7 +222,7 @@ addItemBtn.addEventListener('click', function () {
   itemRequestedInput.focus();
 });
 
-// ===================== PRINTABLE MRF PDF (A5 PORTRAIT) =====================
+// ===================== PRINTABLE MRF PDF (A4 TOP HALF) =====================
 
 function formatDateDisplay_(iso) {
   if (!iso) return '';
@@ -234,61 +234,60 @@ function formatDateDisplay_(iso) {
 function buildAndDownloadMrfPdf_(payload, res) {
   const { jsPDF } = window.jspdf;
 
-  // Dimensions: Half A4 (A5) is 5.83 x 8.27 inches
-  // 1 inch = 72 points
-  const margin = 0.215 * 72; 
-  const pageW = 5.83 * 72;   
-  const pageH = 8.27 * 72;   
+  // A4 dimensions in points: 595.44 x 841.89
+  const pageW = 595.44;   
+  const pageH = 841.89;   
+  const margin = 0.215 * 72; // 15.48 pt
   
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'pt',
-    format: [pageW, pageH]
+    format: 'a4'
   });
 
   const contentW = pageW - (margin * 2);
-  const rowH = 14.5; 
+  const rowH = 16; // Adjusted to fit nicely in top half
   let y = margin;
 
   // --- 1. MRF# Header ---
   doc.setFont(FONT_LABELS, 'bold');
-  doc.setFontSize(9);
+  doc.setFontSize(10);
   doc.setTextColor(0, 0, 0);
-  doc.text('MRF#', pageW - margin - 55, y + 10);
+  doc.text('MRF#', pageW - margin - 80, y + 10);
   
   doc.setTextColor(200, 0, 0); // Red Color
-  doc.setFontSize(11);
+  doc.setFontSize(12);
   const mrfDigits = String(res.mrfNumber).replace(/^MRF/i, '');
-  doc.text(mrfDigits, pageW - margin - 30, y + 10);
+  doc.text(mrfDigits, pageW - margin - 45, y + 10);
   y += 15;
 
   // --- 2. Black Title Bar ---
   doc.setFillColor(0, 0, 0);
-  doc.rect(margin, y, contentW, 18, 'F');
+  doc.rect(margin, y, contentW, 20, 'F');
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(10);
-  doc.text('MATERIAL REQUEST FORM', pageW / 2, y + 12, { align: 'center' });
-  y += 18;
+  doc.setFontSize(11);
+  doc.text('MATERIAL REQUEST FORM', pageW / 2, y + 14, { align: 'center' });
+  y += 20;
 
   // --- 3. Field Block ---
   const col1X = margin;
-  const col1LineX = margin + 55;
+  const col1LineX = margin + 70;
   const col2X = pageW / 2 + 10;
-  const col2LineX = col2X + 75;
-  const lineEnd1 = pageW / 2 - 5;
+  const col2LineX = col2X + 110;
+  const lineEnd1 = pageW / 2 - 10;
   const lineEnd2 = pageW - margin;
 
   function drawField(label, value, x, lineX, endX, curY) {
     doc.setFont(FONT_LABELS, 'bold');
-    doc.setFontSize(7);
+    doc.setFontSize(8);
     doc.setTextColor(0, 0, 0);
-    doc.text(label, x, curY + 10);
+    doc.text(label, x, curY + 12);
     doc.setDrawColor(0);
     doc.setLineWidth(0.5);
-    doc.line(lineX, curY + 11, endX, curY + 11);
+    doc.line(lineX, curY + 13, endX, curY + 13);
     if (value) {
-      doc.setFontSize(8);
-      doc.text(String(value).toUpperCase(), (lineX + endX) / 2, curY + 9, { align: 'center' });
+      doc.setFontSize(9);
+      doc.text(String(value).toUpperCase(), (lineX + endX) / 2, curY + 11, { align: 'center' });
     }
   }
 
@@ -310,10 +309,11 @@ function buildAndDownloadMrfPdf_(payload, res) {
     drawField(rightFields[i][0], rightFields[i][1], col2X, col2LineX, lineEnd2, y);
     y += rowH;
   }
-  y += 5;
+  y += 10; // Spacer
 
   // --- 4. Material Table ---
-  const colWidths = [30, 35, 55, 148, 30, 30, 40];
+  // Column Widths tuned for A4 width
+  const colWidths = [45, 50, 75, 215, 30, 30, 40];
   const colX = [margin];
   for (let i = 0; i < colWidths.length; i++) colX.push(colX[i] + colWidths[i]);
 
@@ -322,163 +322,8 @@ function buildAndDownloadMrfPdf_(payload, res) {
 
   // Red Header Row 1 (Merged)
   doc.setTextColor(200, 0, 0);
-  doc.setFontSize(7);
+  doc.setFontSize(8);
   const span1 = colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
-  doc.rect(colX[0], y, span1, 12);
-  doc.text('MATERIAL DESCRIPTION', colX[0] + span1/2, y + 8, { align: 'center' });
-  const span2 = colWidths[4] + colWidths[5];
-  doc.rect(colX[4], y, span2, 12);
-  doc.text('INVENTORY', colX[4] + span2/2, y + 8, { align: 'center' });
-  const span3 = colWidths[6];
-  doc.rect(colX[6], y, span3, 12);
-  doc.text('END USER', colX[6] + span3/2, y + 8, { align: 'center' });
-  y += 12;
-
-  // Header Row 2
-  const headers = ['QUANTITY', 'UOM', 'SIZE', 'ITEM DESCRIPTION', 'RELEASE', 'REQUEST', 'RECEIVER'];
-  doc.setTextColor(0, 0, 0);
-  headers.forEach((h, i) => {
-    doc.rect(colX[i], y, colWidths[i], 12);
-    doc.setFontSize(6);
-    doc.text(h, colX[i] + colWidths[i]/2, y + 8, { align: 'center' });
-  });
-  y += 12;
-
-  // Item Rows (Forced to 15 rows to fill the page properly)
-  for (let r = 0; r < 15; r++) {
-    headers.forEach((h, i) => doc.rect(colX[i], y, colWidths[i], rowH));
-    const it = payload.items[r];
-    if (it) {
-      doc.setFontSize(7);
-      doc.text(String(it.qty), colX[0] + colWidths[0]/2, y + 10, { align: 'center' });
-      doc.text(String(it.uom), colX[1] + colWidths[1]/2, y + 10, { align: 'center' });
-      doc.text(String(it.size || ''), colX[2] + colWidths[2]/2, y + 10, { align: 'center' });
-      doc.text(String(it.itemRequested).toUpperCase(), colX[3] + 4, y + 10);
-    }
-    y += rowH;
-  }
-  y += 10;
-
-  // --- 5. Footer / Signatures ---
-  const footerCol1 = margin;
-  const footerCol1Line = margin + 65;
-  const footerCol1End = margin + 170;
-  const footerCol2 = pageW / 2 + 30;
-  const footerCol2Line = footerCol2 + 55;
-  const footerCol2End = pageW - margin;
-
-  doc.setFontSize(7);
-  doc.text('REQUESTED BY:', footerCol1, y + 10);
-  doc.line(footerCol1Line, y + 11, footerCol1End, y + 11);
-  if (payload.requestedBy) {
-     doc.text(payload.requestedBy.toUpperCase(), (footerCol1Line + footerCol1End)/2, y + 9, { align: 'center' });
-  }
-
-  doc.text('CHECKED BY:', footerCol2, y + 10);
-  doc.line(footerCol2Line, y + 11, footerCol2End, y + 11);
-  y += 12;
-
-  doc.setTextColor(200, 0, 0); // Red sub-labels
-  doc.setFontSize(6);
-  doc.text('SUPERVISOR/ MANAGER', footerCol1, y + 6);
-  doc.text('INVENTORY PERSONNEL', footerCol2, y + 6);
-  doc.setTextColor(0,0,0);
-  doc.text('NAME AND SIGNATURES', (footerCol1Line + footerCol1End)/2, y + 6, { align: 'center' });
-  doc.text('NAME AND SIGNATURES', (footerCol2Line + footerCol2End)/2, y + 6, { align: 'center' });
-  y += 18;
-
-  const midLineS = pageW / 2 - 50;
-  const midLineE = pageW / 2 + 100;
-  doc.setFontSize(7);
-  doc.text('APPROVED BY:', midLineS - 55, y + 10);
-  doc.line(midLineS, y + 11, midLineE, y + 11);
-  y += 12;
-
-  doc.setTextColor(200, 0, 0);
-  doc.setFontSize(6);
-  doc.text('OIC SUPERVISOR', midLineS - 55, y + 6);
-  doc.setTextColor(0,0,0);
-  doc.text('NAME AND SIGNATURES', (midLineS + midLineE)/2, y + 6, { align: 'center' });
-
-  doc.save(res.mrfNumber + '.pdf');
-}
-
-// ===================== SUBMIT BATCH =====================
-
-submitAllBtn.addEventListener('click', async function () {
-  if (!pending.length) return;
-
-  const projectName = projectNameInput.value.trim();
-  const soNumber = soNumberInput.value.trim();
-  const lob = lobSelect.value;
-  const date = mrfDateInput.value;
-  const requestor = requestorSelect.value;
-  const requestedBy = requestedByInput.value.trim();
-  const productionDeadline = productionDeadlineInput.value;
-
-  if (!projectName) { alert('Project Name is required.'); return; }
-  if (!lob) { alert('Select a LOB.'); return; }
-  if (!date) { alert('Date is required.'); return; }
-  if (!requestor) { alert('Select a Requestor.'); return; }
-  if (!requestedBy) { alert('Requested by (full name) is required.'); return; }
-  if (!productionDeadline) { alert('Production Deadline is required.'); return; }
-
-  submitAllBtn.disabled = true;
-  msg.className = 'msg';
-  msg.classList.remove('hidden');
-  msg.innerHTML = '<span class="spinner"></span> Submitting ' + pending.length + ' item(s)...';
-
-  try {
-    const payload = {
-      projectName: projectName,
-      soNumber: soNumber,
-      lob: lob,
-      date: date,
-      requestor: requestor,
-      requestedBy: requestedBy,
-      procurementDeadline: procurementDeadlineInput.value,
-      productionDeadline: productionDeadline,
-      items: pending
-    };
-
-    const res = await apiPost('submitMrf', payload);
-    if (res.error) throw new Error(res.error);
-
-    msg.className = 'msg success';
-    msg.innerHTML = 'Submitted as <strong>MRF# ' + escapeHtml(res.mrfNumber) + '</strong> — ' + res.count + ' item(s) saved.';
-    if (res.sheetUrl) {
-      msg.innerHTML += ' <a href="' + res.sheetUrl + '" target="_blank" rel="noopener" class="sheet-link-inline">View in Smartsheet &#8599;</a>';
-    }
-
-    try {
-      buildAndDownloadMrfPdf_(payload, res);
-    } catch (pdfErr) {
-      msg.innerHTML += '<br><span class="hint">(PDF download failed: ' + escapeHtml(pdfErr.message || String(pdfErr)) + ')</span>';
-    }
-
-    pending = [];
-    renderTable();
-    projectNameInput.value = '';
-    soNumberInput.value = '';
-    lobSelect.value = lobSelect.querySelector('option[value="ACP"]') ? 'ACP' : '';
-    mrfDateInput.value = todayIso_();
-    requestorSelect.value = '';
-    requestedByInput.value = '';
-    procurementDeadlineInput.value = '';
-    productionDeadlineInput.value = '';
-    loadMrfPreview();
-  } catch (err) {
-    msg.className = 'msg error';
-    msg.textContent = err.message || String(err);
-    submitAllBtn.disabled = false;
-  }
-});
-
-// ===================== INIT =====================
-
-renderTable();
-mrfDateInput.value = todayIso_();
-loadMrfPreview();
-loadLobOptions();
-loadRequestorOptions();
-loadItemOptions();
+  doc.rect(colX[0], y, span1, 14);
+  doc.text('MATERIAL DESCRIPTION', colX[0] + span1/2, y + 10, { align: 'center' });
+  const span2 = colWidths[4]
