@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Material Request Form</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <h1>Material Request Form</h1>
+      <button id="themeToggle" class="icon-btn" aria-label="Toggle light/dark mode">&#127769;</button>
+    </header>
+
+    <main id="content">
+      <div class="card">
+        <p class="hint" style="margin-top:-6px;">One MRF# per submission — add as many items as you need below, then submit once.</p>
+
+        <div class="mrf-banner" id="mrfBanner">
+          <span class="mrf-banner-label">MRF#</span>
+          <span class="mrf-banner-value" id="mrfPreview">...</span>
+          <span class="hint">(assigned automatically on submit)</span>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="soNumber">SO# <span class="req">*</span></label>
+            <input type="text" id="soNumber" placeholder="e.g. SO20728" />
+          </div>
+          <div class="field">
+            <label for="lob">LOB</label>
+            <select id="lob">
+              <option value="">Loading...</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="requestor">Requestor <span class="req">*</span></label>
+            <select id="requestor">
+              <option value="">Loading...</option>
+            </select>
+            <div id="requestorError" class="msg error hidden"></div>
+          </div>
+          <div class="field">
+            <label for="requestedBy">Requested by <span class="hint">(full name)</span></label>
+            <input type="text" id="requestedBy" placeholder="Full name" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="procurementDeadline">Procurement Deadline</label>
+            <input type="date" id="procurementDeadline" />
+          </div>
+          <div class="field">
+            <label for="productionDeadline">Production Deadline <span class="req">*</span></label>
+            <input type="date" id="productionDeadline" />
+          </div>
+        </div>
+
+        <hr class="divider" />
+
+        <div class="line-entry">
+          <div class="field">
+            <label for="itemRequested">Item Requested <span class="req">*</span></label>
+            <input type="text" id="itemRequested" placeholder="e.g. BASAHAN" />
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="itemQty">Qty <span class="req">*</span></label>
+              <input type="number" id="itemQty" step="1" min="1" placeholder="#" />
+            </div>
+            <div class="field">
+              <label for="itemUom">U.O.M. <span class="req">*</span></label>
+              <input type="text" id="itemUom" placeholder="e.g. PCS" />
+            </div>
+            <div class="field">
+              <label for="itemSize">Size</label>
+              <input type="text" id="itemSize" placeholder="optional" />
+            </div>
+          </div>
+          <button type="button" id="addItemBtn" class="btn btn-primary">+ Add Item</button>
+        </div>
+
+        <div class="pending-list">
+          <h3>Items in this request (<span id="itemCount">0</span>)</h3>
+          <div class="table-wrap">
+            <table id="itemTable" class="line-table">
+              <thead><tr><th>Item</th><th>Qty</th><th>UOM</th><th>Size</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <button type="button" id="submitAllBtn" class="btn btn-primary" style="width:100%;" disabled>Submit Request</button>
+        </div>
+
+        <div id="msg" class="msg hidden"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
