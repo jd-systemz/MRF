@@ -1,5 +1,5 @@
 // PASTE your deployed Apps Script Web App URL here (ends in /exec):
-const API_URL = 'PASTE_YOUR_DEPLOYED_WEB_APP_URL_HERE';
+const API_URL = 'https://script.google.com/macros/s/AKfycbw9yEAB-kOOOtp3zxZbNy-UnROPMFSUKw2LIIVaQL7lZIGR9-t8Hiyr3163WsWAukAD6w/exec';
 const THEME_KEY = 'mrf_form_theme';
 
 // ===================== THEME (light / dark) =====================
