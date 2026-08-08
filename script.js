@@ -77,11 +77,22 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+// Local YYYY-MM-DD (avoids the UTC-shift issue with toISOString for date-only inputs).
+function todayIso_() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
 // ===================== FORM ELEMENTS =====================
 
 const mrfPreviewEl = document.getElementById('mrfPreview');
+const projectNameInput = document.getElementById('projectName');
 const soNumberInput = document.getElementById('soNumber');
 const lobSelect = document.getElementById('lob');
+const mrfDateInput = document.getElementById('mrfDate');
 const requestorSelect = document.getElementById('requestor');
 const requestorErrorEl = document.getElementById('requestorError');
 const requestedByInput = document.getElementById('requestedBy');
@@ -102,9 +113,10 @@ const msg = document.getElementById('msg');
 let pending = [];
 
 // ===================== MRF# PREVIEW =====================
-// Unreserved — just shows what the number WOULD be right now. The real
-// number is assigned atomically by the backend at submit time and may
-// differ slightly if someone else submitted in between.
+// Unreserved — just shows what the number WOULD be right now (already
+// formatted as e.g. "MRF264200" by the backend). The real number is
+// assigned atomically by the backend at submit time and may differ
+// slightly if someone else submitted in between.
 
 async function loadMrfPreview() {
   try {
@@ -136,7 +148,7 @@ async function loadLobOptions() {
   try {
     const options = await apiGet('getLobOptions');
     if (options.error) throw new Error(options.error);
-    fillSelect(lobSelect, options, 'Select LOB (optional)');
+    fillSelect(lobSelect, options, 'Select LOB');
   } catch (err) {
     fillSelect(lobSelect, [], 'Not available');
   }
@@ -204,12 +216,19 @@ addItemBtn.addEventListener('click', function () {
 submitAllBtn.addEventListener('click', async function () {
   if (!pending.length) return;
 
+  const projectName = projectNameInput.value.trim();
   const soNumber = soNumberInput.value.trim();
+  const lob = lobSelect.value;
+  const date = mrfDateInput.value;
   const requestor = requestorSelect.value;
+  const requestedBy = requestedByInput.value.trim();
   const productionDeadline = productionDeadlineInput.value;
 
-  if (!soNumber) { alert('SO# is required.'); return; }
+  if (!projectName) { alert('Project Name is required.'); return; }
+  if (!lob) { alert('Select a LOB.'); return; }
+  if (!date) { alert('Date is required.'); return; }
   if (!requestor) { alert('Select a Requestor.'); return; }
+  if (!requestedBy) { alert('Requested by (full name) is required.'); return; }
   if (!productionDeadline) { alert('Production Deadline is required.'); return; }
 
   submitAllBtn.disabled = true;
@@ -219,10 +238,12 @@ submitAllBtn.addEventListener('click', async function () {
 
   try {
     const payload = {
+      projectName: projectName,
       soNumber: soNumber,
-      lob: lobSelect.value,
+      lob: lob,
+      date: date,
       requestor: requestor,
-      requestedBy: requestedByInput.value.trim(),
+      requestedBy: requestedBy,
       procurementDeadline: procurementDeadlineInput.value,
       productionDeadline: productionDeadline,
       items: pending
@@ -240,8 +261,10 @@ submitAllBtn.addEventListener('click', async function () {
     // Reset everything for the next request.
     pending = [];
     renderTable();
+    projectNameInput.value = '';
     soNumberInput.value = '';
     lobSelect.value = '';
+    mrfDateInput.value = todayIso_();
     requestorSelect.value = '';
     requestedByInput.value = '';
     procurementDeadlineInput.value = '';
@@ -257,6 +280,7 @@ submitAllBtn.addEventListener('click', async function () {
 // ===================== INIT =====================
 
 renderTable();
+mrfDateInput.value = todayIso_();
 loadMrfPreview();
 loadLobOptions();
 loadRequestorOptions();
