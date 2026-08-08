@@ -68,8 +68,9 @@
         <hr class="divider" />
         <div class="line-entry">
           <div class="field">
-            <label for="itemRequested">Item Requested <span class="req">*</span></label>
-            <input type="text" id="itemRequested" placeholder="e.g. BASAHAN" />
+            <label for="itemRequested">Item Requested <span class="req">*</span> <span class="hint">(pick a suggestion or type your own)</span></label>
+            <input type="text" id="itemRequested" placeholder="e.g. BASAHAN" list="itemRequestedList" autocomplete="off" />
+            <datalist id="itemRequestedList"></datalist>
           </div>
           <div class="row">
             <div class="field">
