@@ -268,55 +268,101 @@ function formatDateDisplay_(iso) {
   return parts[1] + '/' + parts[2] + '/' + parts[0];
 }
 
+// ---- Font auto-fit ----
+// Mirrors Google Sheets' own "shrink to fit" behavior: text is drawn as
+// large as possible (up to MAX_FONT_SIZE, matching the largest usable size
+// in Sheets) and only steps down from there if it's too wide for the cell
+// it sits in — never grows past the max, never shrinks below MIN_FONT_SIZE.
+const MAX_FONT_SIZE = 25; // pt
+const MIN_FONT_SIZE = 6;  // pt
+
+function fitFontSize_(doc, text, font, style, maxWidth, maxSize, minSize) {
+  const cap = Math.min(maxSize || MAX_FONT_SIZE, MAX_FONT_SIZE);
+  const floor = minSize || MIN_FONT_SIZE;
+  let size = cap;
+  doc.setFont(font, style);
+  doc.setFontSize(size);
+  const str = String(text == null ? '' : text);
+  if (!str) return size;
+  while (size > floor && doc.getTextWidth(str) > maxWidth) {
+    size -= 0.5;
+    doc.setFontSize(size);
+  }
+  return size;
+}
+
 function buildAndDownloadMrfPdf_(payload, res) {
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-  const margin = 10;
-  const pageW = doc.internal.pageSize.getWidth();
+  // ---- Row grid ----
+  // Every row is exactly 55px tall, matching the source Google Sheet's row
+  // height exactly. The title bar and the MATERIAL DESCRIPTION / INVENTORY
+  // / END USER header are each 2 rows merged (110px), same as the sheet.
+  const ROW_H = 55;
+  const HEADER_H = ROW_H * 2; // 110px
+  const MIN_TABLE_ROWS = 13;  // matches the sheet's item rows (13–25)
+  const FIELD_ROWS = 4;       // date/department/purpose/lob + the 4 right-side fields
+  const FOOTER_ROWS = 4;      // requested/checked, supervisor labels, approved by, oic supervisor
+
+  const margin = 20;
+  const contentH =
+    ROW_H +                    // MRF# line
+    HEADER_H +                 // title bar
+    ROW_H * FIELD_ROWS +       // field block
+    ROW_H +                    // blank spacer row
+    HEADER_H +                 // MATERIAL DESCRIPTION / INVENTORY / END USER
+    ROW_H +                    // QUANTITY / UOM / SIZE / ... headers
+    ROW_H * MIN_TABLE_ROWS +   // item rows
+    ROW_H * FOOTER_ROWS;       // signature block
+
+  const pageW = 850;
+  const pageH = margin * 2 + contentH;
+  // Page is sized exactly to the content grid above (unit: px, at the same
+  // 55px-per-row scale as the sheet) rather than a fixed A4/Letter sheet —
+  // that's what keeps every row exactly 55px without stretching or cropping.
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'px', format: [pageW, pageH] });
   const contentW = pageW - margin * 2;
   let y = margin;
 
-  // ---- MRF# (top right) ----
-  doc.setFont(FONT_LABELS, 'bold');
-  doc.setFontSize(13);
+  // ---- MRF# line ----
   doc.setTextColor(0, 0, 0);
-  doc.text('MRF#', pageW - margin - 38, y + 5);
+  fitFontSize_(doc, 'MRF#', FONT_LABELS, 'bold', 90, 18);
+  doc.text('MRF#', pageW - margin - 170, y + ROW_H / 2 + 6);
   doc.setTextColor(200, 0, 0);
-  doc.text(String(res.mrfNumber).replace(/^MRF/i, ''), pageW - margin - 22, y + 5);
+  const mrfDigits = String(res.mrfNumber).replace(/^MRF/i, '');
+  fitFontSize_(doc, mrfDigits, FONT_LABELS, 'bold', 110, 20);
+  doc.text(mrfDigits, pageW - margin - 100, y + ROW_H / 2 + 6);
   doc.setTextColor(0, 0, 0);
-  y += 9;
+  y += ROW_H;
 
-  // ---- Title bar ----
+  // ---- Title bar (2 rows merged) ----
   doc.setFillColor(0, 0, 0);
-  doc.rect(margin, y, contentW, 9, 'F');
+  doc.rect(margin, y, contentW, HEADER_H, 'F');
   doc.setTextColor(255, 255, 255);
-  doc.setFont(FONT_LABELS, 'bold');
-  doc.setFontSize(15);
-  doc.text('MATERIAL REQUEST FORM', pageW / 2, y + 6.3, { align: 'center' });
+  fitFontSize_(doc, 'MATERIAL REQUEST FORM', FONT_LABELS, 'bold', contentW - 60, MAX_FONT_SIZE);
+  doc.text('MATERIAL REQUEST FORM', pageW / 2, y + HEADER_H / 2 + 8, { align: 'center' });
   doc.setTextColor(0, 0, 0);
-  y += 9 + 3;
+  y += HEADER_H;
 
-  // ---- Two-column field block ----
-  const rowH = 8;
+  // ---- Field rows ----
   const leftLabelX = margin;
-  const leftLineX1 = margin + 30;
-  const leftLineX2 = margin + contentW / 2 - 6;
-  const rightLabelX = margin + contentW / 2 + 4;
-  const rightLineX1 = rightLabelX + 42;
+  const leftLineX1 = margin + 110;
+  const leftLineX2 = margin + contentW / 2 - 20;
+  const rightLabelX = margin + contentW / 2 + 15;
+  const rightLineX1 = rightLabelX + 160;
   const rightLineX2 = margin + contentW;
 
   function drawFieldRow(labelX, lineX1, lineX2, rowY, label, value) {
     doc.setFont(FONT_LABELS, 'bold');
-    doc.setFontSize(9);
-    doc.text(label, labelX, rowY + 5.5);
+    doc.setFontSize(13);
+    doc.setTextColor(0, 0, 0);
+    doc.text(label, labelX, rowY + ROW_H - 18);
     doc.setDrawColor(0);
-    doc.setLineWidth(0.25);
-    doc.line(lineX1, rowY + 6.2, lineX2, rowY + 6.2);
+    doc.setLineWidth(1);
+    doc.line(lineX1, rowY + ROW_H - 16, lineX2, rowY + ROW_H - 16);
     if (value) {
-      doc.setFont(FONT_LABELS, 'bold');
-      doc.setFontSize(9.5);
-      doc.text(String(value), lineX1 + 1, rowY + 5.3);
+      fitFontSize_(doc, String(value), FONT_LABELS, 'bold', lineX2 - lineX1 - 8, MAX_FONT_SIZE, 9);
+      doc.text(String(value), (lineX1 + lineX2) / 2, rowY + ROW_H - 22, { align: 'center' });
     }
   }
 
@@ -332,129 +378,126 @@ function buildAndDownloadMrfPdf_(payload, res) {
     ['PROCUREMENT DEADLINE', formatDateDisplay_(payload.procurementDeadline)],
     ['PRODUCTION DEADLINE:', formatDateDisplay_(payload.productionDeadline)]
   ];
-  for (let i = 0; i < 4; i++) {
-    const rowY = y + i * rowH;
+  for (let i = 0; i < FIELD_ROWS; i++) {
+    const rowY = y + i * ROW_H;
     drawFieldRow(leftLabelX, leftLineX1, leftLineX2, rowY, leftFields[i][0], leftFields[i][1]);
     drawFieldRow(rightLabelX, rightLineX1, rightLineX2, rowY, rightFields[i][0], rightFields[i][1]);
   }
-  y += 4 * rowH + 3;
+  y += ROW_H * FIELD_ROWS;
+  y += ROW_H; // blank spacer row
 
   // ---- Item table ----
-  // Proportions taken from the original form; scaled to whatever the page's
-  // content width actually is, so the table always fits edge-to-edge.
+  // Column proportions taken from the original form, scaled to the page's
+  // content width so the table always fits edge-to-edge.
   const colFractions = [20, 20, 30, 110, 25, 25, 33.4]; // Qty, UOM, Size, Item Description, Release, Request, Receiver
   const fractionSum = colFractions.reduce(function (a, b) { return a + b; }, 0);
   const colWidths = colFractions.map(function (f) { return (contentW * f) / fractionSum; });
   const colX = [margin];
   for (let i = 0; i < colWidths.length; i++) colX.push(colX[i] + colWidths[i]);
 
-  const h1 = 7;
   doc.setDrawColor(0);
-  doc.setLineWidth(0.25);
-  doc.setTextColor(200, 0, 0);
-  doc.setFont(FONT_LABELS, 'bold');
-  doc.setFontSize(9.5);
+  doc.setLineWidth(1);
 
-  // Row 1: MATERIAL DESCRIPTION / INVENTORY / END USER spans
+  // Span header (2 rows merged): MATERIAL DESCRIPTION / INVENTORY / END USER
   const span1W = colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
   const span2W = colWidths[4] + colWidths[5];
   const span3W = colWidths[6];
-  doc.rect(colX[0], y, span1W, h1);
-  doc.text('MATERIAL DESCRIPTION', colX[0] + span1W / 2, y + 5, { align: 'center' });
-  doc.rect(colX[4], y, span2W, h1);
-  doc.text('INVENTORY', colX[4] + span2W / 2, y + 5, { align: 'center' });
-  doc.rect(colX[6], y, span3W, h1);
-  doc.text('END USER', colX[6] + span3W / 2, y + 5, { align: 'center' });
-  y += h1;
-
-  // Row 2: column headers
-  const headers = ['QUANTITY', 'UOM', 'SIZE', 'ITEM DESCRIPTION', 'RELEASE', 'REQUEST', 'RECEIVER'];
-  const h2 = 7;
+  doc.setTextColor(200, 0, 0);
+  doc.rect(colX[0], y, span1W, HEADER_H);
+  fitFontSize_(doc, 'MATERIAL DESCRIPTION', FONT_LABELS, 'bold', span1W - 20, MAX_FONT_SIZE);
+  doc.text('MATERIAL DESCRIPTION', colX[0] + span1W / 2, y + HEADER_H / 2 + 6, { align: 'center' });
+  doc.rect(colX[4], y, span2W, HEADER_H);
+  fitFontSize_(doc, 'INVENTORY', FONT_LABELS, 'bold', span2W - 12, MAX_FONT_SIZE);
+  doc.text('INVENTORY', colX[4] + span2W / 2, y + HEADER_H / 2 + 6, { align: 'center' });
+  doc.rect(colX[6], y, span3W, HEADER_H);
+  fitFontSize_(doc, 'END USER', FONT_LABELS, 'bold', span3W - 12, MAX_FONT_SIZE);
+  doc.text('END USER', colX[6] + span3W / 2, y + HEADER_H / 2 + 6, { align: 'center' });
   doc.setTextColor(0, 0, 0);
-  doc.setFont(FONT_LABELS, 'bold');
-  doc.setFontSize(7.5);
-  headers.forEach(function (h, i) {
-    doc.rect(colX[i], y, colWidths[i], h2);
-    doc.text(h, colX[i] + colWidths[i] / 2, y + 4.8, { align: 'center' });
-  });
-  y += h2;
+  y += HEADER_H;
 
-  // Item rows — Release / Request / Receiver stay blank. Always draws a
-  // fixed number of ruled rows (matching the printed form's spacing), even
-  // if this batch has fewer items than that — the extra rows stay blank
-  // rather than shrinking the table down to just the filled rows.
-  // Item description text uses FONT_ITEMS (Arial stand-in).
-  // Row height is fixed (not stretched to fill the page) so the form stays
-  // compact like the original single-sheet layout, with the rest of the
-  // page left blank below the signature block instead of the table
-  // ballooning to cover the full sheet.
-  const MIN_TABLE_ROWS = 12;
-  const ITEM_ROW_H = 7; // mm, fixed
-  const totalRows = Math.max(payload.items.length, MIN_TABLE_ROWS);
-  const itemRowH = ITEM_ROW_H;
-  doc.setFont(FONT_ITEMS, 'normal');
-  doc.setFontSize(9);
-  for (let r = 0; r < totalRows; r++) {
-    headers.forEach(function (h, i) { doc.rect(colX[i], y, colWidths[i], itemRowH); });
+  // Column header row
+  const headers = ['QUANTITY', 'UOM', 'SIZE', 'ITEM DESCRIPTION', 'RELEASE', 'REQUEST', 'RECEIVER'];
+  headers.forEach(function (h, i) {
+    doc.rect(colX[i], y, colWidths[i], ROW_H);
+    fitFontSize_(doc, h, FONT_LABELS, 'bold', colWidths[i] - 8, MAX_FONT_SIZE);
+    doc.text(h, colX[i] + colWidths[i] / 2, y + ROW_H / 2 + 4, { align: 'center' });
+  });
+  y += ROW_H;
+
+  // Item rows — Release / Request / Receiver stay blank. Always draws
+  // MIN_TABLE_ROWS ruled rows (matching the sheet's rows 13–25), even if
+  // this batch has fewer items — the extra rows stay blank rather than
+  // shrinking the table. Item description text uses FONT_ITEMS (Arial
+  // stand-in); each cell's font size auto-fits its column width.
+  for (let r = 0; r < MIN_TABLE_ROWS; r++) {
+    headers.forEach(function (h, i) { doc.rect(colX[i], y, colWidths[i], ROW_H); });
     const it = payload.items[r];
     if (it) {
-      doc.text(String(it.qty), colX[0] + colWidths[0] / 2, y + itemRowH / 2 + 1.2, { align: 'center' });
-      doc.text(String(it.uom || ''), colX[1] + colWidths[1] / 2, y + itemRowH / 2 + 1.2, { align: 'center' });
-      doc.text(String(it.size || ''), colX[2] + colWidths[2] / 2, y + itemRowH / 2 + 1.2, { align: 'center' });
-      doc.text(String(it.itemRequested), colX[3] + 2, y + itemRowH / 2 + 1.2, { align: 'left' });
+      fitFontSize_(doc, String(it.qty), FONT_ITEMS, 'normal', colWidths[0] - 8, MAX_FONT_SIZE);
+      doc.text(String(it.qty), colX[0] + colWidths[0] / 2, y + ROW_H / 2 + 4, { align: 'center' });
+      fitFontSize_(doc, String(it.uom || ''), FONT_ITEMS, 'normal', colWidths[1] - 8, MAX_FONT_SIZE);
+      doc.text(String(it.uom || ''), colX[1] + colWidths[1] / 2, y + ROW_H / 2 + 4, { align: 'center' });
+      fitFontSize_(doc, String(it.size || ''), FONT_ITEMS, 'normal', colWidths[2] - 8, MAX_FONT_SIZE);
+      doc.text(String(it.size || ''), colX[2] + colWidths[2] / 2, y + ROW_H / 2 + 4, { align: 'center' });
+      fitFontSize_(doc, String(it.itemRequested), FONT_ITEMS, 'normal', colWidths[3] - 12, MAX_FONT_SIZE);
+      doc.text(String(it.itemRequested), colX[3] + 6, y + ROW_H / 2 + 4, { align: 'left' });
     }
-    y += itemRowH;
+    y += ROW_H;
   }
 
-  // ---- Footer / signatures ----
-  y += 16; // fixed gap below the table, then the form ends — no bottom-pinning
+  // ---- Footer / signatures (4 rows, 55px each) ----
   const fLeftLabelX = margin;
-  const fLeftLineX1 = margin + 30;
+  const fLeftLineX1 = margin + 110;
   const fLeftLineX2 = margin + contentW * 0.42;
   const fRightLabelX = margin + contentW * 0.55;
-  const fRightLineX1 = fRightLabelX + 26;
+  const fRightLineX1 = fRightLabelX + 110;
   const fRightLineX2 = margin + contentW;
 
+  // Row: REQUESTED BY / CHECKED BY
   doc.setFont(FONT_LABELS, 'bold');
-  doc.setFontSize(9);
+  doc.setFontSize(13);
   doc.setTextColor(0, 0, 0);
-  doc.text('REQUESTED BY:', fLeftLabelX, y);
-  doc.line(fLeftLineX1, y + 0.8, fLeftLineX2, y + 0.8);
+  doc.text('REQUESTED BY:', fLeftLabelX, y + ROW_H - 18);
+  doc.line(fLeftLineX1, y + ROW_H - 16, fLeftLineX2, y + ROW_H - 16);
+  if (payload.requestedBy) {
+    fitFontSize_(doc, payload.requestedBy, FONT_LABELS, 'bold', fLeftLineX2 - fLeftLineX1 - 8, MAX_FONT_SIZE, 9);
+    doc.text(String(payload.requestedBy), (fLeftLineX1 + fLeftLineX2) / 2, y + ROW_H - 22, { align: 'center' });
+  }
   doc.setFont(FONT_LABELS, 'bold');
-  doc.text(String(payload.requestedBy || ''), fLeftLineX1 + 1, y - 0.8);
+  doc.setFontSize(13);
+  doc.text('CHECKED BY:', fRightLabelX, y + ROW_H - 18);
+  doc.line(fRightLineX1, y + ROW_H - 16, fRightLineX2, y + ROW_H - 16);
+  y += ROW_H;
 
-  doc.text('CHECKED BY:', fRightLabelX, y);
-  doc.line(fRightLineX1, y + 0.8, fRightLineX2, y + 0.8);
-
-  y += 8;
+  // Row: SUPERVISOR/ MANAGER ... INVENTORY PERSONNEL sub-labels
   doc.setFont(FONT_LABELS, 'normal');
-  doc.setFontSize(8);
+  doc.setFontSize(11);
   doc.setTextColor(200, 0, 0);
-  doc.text('SUPERVISOR/ MANAGER', fLeftLabelX, y);
-  doc.setTextColor(200, 0, 0);
-  doc.text('INVENTORY PERSONNEL', fRightLabelX, y);
+  doc.text('SUPERVISOR/ MANAGER', fLeftLabelX, y + 18);
+  doc.text('INVENTORY PERSONNEL', fRightLabelX, y + 18);
   doc.setTextColor(0, 0, 0);
-  doc.setFont(FONT_LABELS, 'normal');
-  doc.text('NAME AND SIGNATURES', (fLeftLineX1 + fLeftLineX2) / 2, y, { align: 'center' });
-  doc.text('NAME AND SIGNATURES', (fRightLineX1 + fRightLineX2) / 2, y, { align: 'center' });
+  doc.text('NAME AND SIGNATURES', (fLeftLineX1 + fLeftLineX2) / 2, y + 18, { align: 'center' });
+  doc.text('NAME AND SIGNATURES', (fRightLineX1 + fRightLineX2) / 2, y + 18, { align: 'center' });
+  y += ROW_H;
 
-  y += 10;
+  // Row: APPROVED BY
   const aLabelX = margin + contentW * 0.34;
-  const aLineX1 = aLabelX + 28;
+  const aLineX1 = aLabelX + 100;
   const aLineX2 = margin + contentW * 0.75;
   doc.setFont(FONT_LABELS, 'bold');
-  doc.setFontSize(9);
-  doc.text('APPROVED BY:', aLabelX, y);
-  doc.line(aLineX1, y + 0.8, aLineX2, y + 0.8);
+  doc.setFontSize(13);
+  doc.text('APPROVED BY:', aLabelX, y + ROW_H - 18);
+  doc.line(aLineX1, y + ROW_H - 16, aLineX2, y + ROW_H - 16);
+  y += ROW_H;
 
-  y += 8;
+  // Row: OIC SUPERVISOR sub-label
   doc.setFont(FONT_LABELS, 'normal');
-  doc.setFontSize(8);
+  doc.setFontSize(11);
   doc.setTextColor(200, 0, 0);
-  doc.text('OIC SUPERVISOR', aLabelX, y);
+  doc.text('OIC SUPERVISOR', aLabelX, y + 18);
   doc.setTextColor(0, 0, 0);
-  doc.setFont(FONT_LABELS, 'normal');
-  doc.text('NAME AND SIGNATURES', (aLineX1 + aLineX2) / 2, y, { align: 'center' });
+  doc.text('NAME AND SIGNATURES', (aLineX1 + aLineX2) / 2, y + 18, { align: 'center' });
+  y += ROW_H;
 
   doc.save(res.mrfNumber + '.pdf');
 }
