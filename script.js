@@ -326,4 +326,163 @@ function buildAndDownloadMrfPdf_(payload, res) {
   const span1 = colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
   doc.rect(colX[0], y, span1, 14);
   doc.text('MATERIAL DESCRIPTION', colX[0] + span1/2, y + 10, { align: 'center' });
-  const span2 = colWidths[4]
+  const span2 = colWidths[4] + colWidths[5];
+  doc.rect(colX[4], y, span2, 14);
+  doc.text('INVENTORY', colX[4] + span2/2, y + 10, { align: 'center' });
+  const span3 = colWidths[6];
+  doc.rect(colX[6], y, span3, 14);
+  doc.text('END USER', colX[6] + span3/2, y + 10, { align: 'center' });
+  y += 14;
+
+  // Header Row 2
+  const headers = ['QUANTITY', 'UOM', 'SIZE', 'ITEM DESCRIPTION', 'RELEASE', 'REQUEST', 'RECEIVER'];
+  doc.setTextColor(0, 0, 0);
+  headers.forEach((h, i) => {
+    doc.rect(colX[i], y, colWidths[i], 14);
+    doc.setFontSize(7);
+    doc.text(h, colX[i] + colWidths[i]/2, y + 10, { align: 'center' });
+  });
+  y += 14;
+
+  // Item Rows (Fixed 13 rows to ensure it stays in top half)
+  for (let r = 0; r < 13; r++) {
+    headers.forEach((h, i) => doc.rect(colX[i], y, colWidths[i], rowH));
+    const it = payload.items[r];
+    if (it) {
+      doc.setFontSize(9);
+      doc.text(String(it.qty), colX[0] + colWidths[0]/2, y + 11, { align: 'center' });
+      doc.text(String(it.uom).toUpperCase(), colX[1] + colWidths[1]/2, y + 11, { align: 'center' });
+      doc.text(String(it.size || '').toUpperCase(), colX[2] + colWidths[2]/2, y + 11, { align: 'center' });
+      doc.text(String(it.itemRequested).toUpperCase(), colX[3] + 5, y + 11);
+    }
+    y += rowH;
+  }
+  y += 15;
+
+  // --- 5. Footer / Signatures ---
+  const footerCol1Line = margin + 90;
+  const footerCol1End = margin + 240;
+  const footerCol2Line = pageW / 2 + 90;
+  const footerCol2End = pageW - margin;
+
+  doc.setFontSize(9);
+  doc.setTextColor(0, 0, 0);
+  
+  // Row: Requested / Checked
+  doc.text('REQUESTED BY:', margin, y + 10);
+  doc.line(footerCol1Line, y + 11, footerCol1End, y + 11);
+  if (payload.requestedBy) {
+     doc.text(payload.requestedBy.toUpperCase(), (footerCol1Line + footerCol1End)/2, y + 9, { align: 'center' });
+  }
+
+  doc.text('CHECKED BY:', pageW / 2 + 10, y + 10);
+  doc.line(footerCol2Line, y + 11, footerCol2End, y + 11);
+  y += 12;
+
+  // Row: Labels (Red)
+  doc.setTextColor(200, 0, 0);
+  doc.setFontSize(7);
+  doc.text('SUPERVISOR/ MANAGER', margin, y + 8);
+  doc.text('INVENTORY PERSONNEL', pageW / 2 + 10, y + 8);
+  doc.setTextColor(0,0,0);
+  doc.text('NAME AND SIGNATURES', (footerCol1Line + footerCol1End)/2, y + 8, { align: 'center' });
+  doc.text('NAME AND SIGNATURES', (footerCol2Line + footerCol2End)/2, y + 8, { align: 'center' });
+  y += 25;
+
+  // Row: Approved By
+  const midLineS = pageW / 2 - 80;
+  const midLineE = pageW / 2 + 150;
+  doc.setFontSize(9);
+  doc.text('APPROVED BY:', midLineS - 75, y + 10);
+  doc.line(midLineS, y + 11, midLineE, y + 11);
+  y += 12;
+
+  // Row: OIC (Red)
+  doc.setTextColor(200, 0, 0);
+  doc.setFontSize(7);
+  doc.text('OIC SUPERVISOR', midLineS - 75, y + 8);
+  doc.setTextColor(0,0,0);
+  doc.text('NAME AND SIGNATURES', (midLineS + midLineE)/2, y + 8, { align: 'center' });
+
+  doc.save(res.mrfNumber + '.pdf');
+}
+
+// ===================== SUBMIT BATCH =====================
+
+submitAllBtn.addEventListener('click', async function () {
+  if (!pending.length) return;
+
+  const projectName = projectNameInput.value.trim();
+  const soNumber = soNumberInput.value.trim();
+  const lob = lobSelect.value;
+  const date = mrfDateInput.value;
+  const requestor = requestorSelect.value;
+  const requestedBy = requestedByInput.value.trim();
+  const productionDeadline = productionDeadlineInput.value;
+
+  if (!projectName) { alert('Project Name is required.'); return; }
+  if (!lob) { alert('Select a LOB.'); return; }
+  if (!date) { alert('Date is required.'); return; }
+  if (!requestor) { alert('Select a Requestor.'); return; }
+  if (!requestedBy) { alert('Requested by (full name) is required.'); return; }
+  if (!productionDeadline) { alert('Production Deadline is required.'); return; }
+
+  submitAllBtn.disabled = true;
+  msg.className = 'msg';
+  msg.classList.remove('hidden');
+  msg.innerHTML = '<span class="spinner"></span> Submitting ' + pending.length + ' item(s)...';
+
+  try {
+    const payload = {
+      projectName: projectName,
+      soNumber: soNumber,
+      lob: lob,
+      date: date,
+      requestor: requestor,
+      requestedBy: requestedBy,
+      procurementDeadline: procurementDeadlineInput.value,
+      productionDeadline: productionDeadline,
+      items: pending
+    };
+
+    const res = await apiPost('submitMrf', payload);
+    if (res.error) throw new Error(res.error);
+
+    msg.className = 'msg success';
+    msg.innerHTML = 'Submitted as <strong>MRF# ' + escapeHtml(res.mrfNumber) + '</strong> — ' + res.count + ' item(s) saved.';
+    if (res.sheetUrl) {
+      msg.innerHTML += ' <a href="' + res.sheetUrl + '" target="_blank" rel="noopener" class="sheet-link-inline">View in Smartsheet &#8599;</a>';
+    }
+
+    try {
+      buildAndDownloadMrfPdf_(payload, res);
+    } catch (pdfErr) {
+      msg.innerHTML += '<br><span class="hint">(PDF download failed: ' + escapeHtml(pdfErr.message || String(pdfErr)) + ')</span>';
+    }
+
+    pending = [];
+    renderTable();
+    projectNameInput.value = '';
+    soNumberInput.value = '';
+    lobSelect.value = lobSelect.querySelector('option[value="ACP"]') ? 'ACP' : '';
+    mrfDateInput.value = todayIso_();
+    requestorSelect.value = '';
+    requestedByInput.value = '';
+    procurementDeadlineInput.value = '';
+    productionDeadlineInput.value = '';
+    loadMrfPreview();
+  } catch (err) {
+    msg.className = 'msg error';
+    msg.textContent = err.message || String(err);
+    submitAllBtn.disabled = false;
+  }
+});
+
+// ===================== INIT =====================
+
+renderTable();
+mrfDateInput.value = todayIso_();
+loadMrfPreview();
+loadLobOptions();
+loadRequestorOptions();
+loadItemOptions();
