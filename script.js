@@ -264,7 +264,7 @@ function buildAndDownloadMrfPdf_(payload, res) {
   doc.setTextColor(0, 0, 0);
   doc.text('MRF#', pageW - margin - 38, y + 5);
   doc.setTextColor(200, 0, 0);
-  doc.text(String(res.mrfNumber), pageW - margin - 22, y + 5);
+  doc.text(String(res.mrfNumber).replace(/^MRF/i, ''), pageW - margin - 22, y + 5);
   doc.setTextColor(0, 0, 0);
   y += 9;
 
@@ -358,21 +358,29 @@ function buildAndDownloadMrfPdf_(payload, res) {
   });
   y += h2;
 
-  // Item rows — Release / Request / Receiver stay blank.
+  // Item rows — Release / Request / Receiver stay blank. Always draws a
+  // fixed number of ruled rows (matching the printed form's spacing), even
+  // if this batch has fewer items than that — the extra rows stay blank
+  // rather than shrinking the table down to just the filled rows.
+  const MIN_TABLE_ROWS = 12;
   const footerReserve = 42;
   const pageH = doc.internal.pageSize.getHeight();
+  const totalRows = Math.max(payload.items.length, MIN_TABLE_ROWS);
   const availableH = pageH - footerReserve - y;
-  const itemRowH = Math.max(6, Math.min(9, availableH / Math.max(payload.items.length, 1)));
+  const itemRowH = Math.max(6, Math.min(12, availableH / totalRows));
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  payload.items.forEach(function (it) {
+  for (let r = 0; r < totalRows; r++) {
     headers.forEach(function (h, i) { doc.rect(colX[i], y, colWidths[i], itemRowH); });
-    doc.text(String(it.qty), colX[0] + colWidths[0] / 2, y + itemRowH / 2 + 1.2, { align: 'center' });
-    doc.text(String(it.uom || ''), colX[1] + colWidths[1] / 2, y + itemRowH / 2 + 1.2, { align: 'center' });
-    doc.text(String(it.size || ''), colX[2] + colWidths[2] / 2, y + itemRowH / 2 + 1.2, { align: 'center' });
-    doc.text(String(it.itemRequested), colX[3] + 2, y + itemRowH / 2 + 1.2, { align: 'left' });
+    const it = payload.items[r];
+    if (it) {
+      doc.text(String(it.qty), colX[0] + colWidths[0] / 2, y + itemRowH / 2 + 1.2, { align: 'center' });
+      doc.text(String(it.uom || ''), colX[1] + colWidths[1] / 2, y + itemRowH / 2 + 1.2, { align: 'center' });
+      doc.text(String(it.size || ''), colX[2] + colWidths[2] / 2, y + itemRowH / 2 + 1.2, { align: 'center' });
+      doc.text(String(it.itemRequested), colX[3] + 2, y + itemRowH / 2 + 1.2, { align: 'left' });
+    }
     y += itemRowH;
-  });
+  }
 
   // ---- Footer / signatures ----
   y = pageH - footerReserve + 6;
@@ -467,7 +475,7 @@ submitAllBtn.addEventListener('click', async function () {
     if (res.error) throw new Error(res.error);
 
     msg.className = 'msg success';
-    msg.innerHTML = 'Submitted as <strong>' + escapeHtml(res.mrfNumber) + '</strong> — ' + res.count + ' item(s) saved.';
+    msg.innerHTML = 'Submitted as <strong>MRF# ' + escapeHtml(res.mrfNumber) + '</strong> — ' + res.count + ' item(s) saved.';
     if (res.sheetUrl) {
       msg.innerHTML += ' <a href="' + res.sheetUrl + '" target="_blank" rel="noopener" class="sheet-link-inline">View in Smartsheet &#8599;</a>';
     }
