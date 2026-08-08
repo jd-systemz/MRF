@@ -3,16 +3,6 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbw9yEAB-kOOOtp3zxZbNy-U
 const THEME_KEY = 'mrf_form_theme';
 
 // ===================== PDF FONTS =====================
-// jsPDF only ships 3 built-in font families: Helvetica, Times, Courier.
-// Arial and Tahoma aren't available without embedding licensed .ttf files,
-// so both stand-ins below resolve to Helvetica — it's metrically identical
-// to Arial (same letter widths) and is the closest available match to
-// Tahoma too, since no other built-in sans-serif exists.
-//   FONT_ITEMS  -> stands in for Arial  (item description table)
-//   FONT_LABELS -> stands in for Tahoma (date/department/deadlines/signatories)
-// If real Arial/Tahoma .ttf files become available, embed them with
-// doc.addFileToVFS()/doc.addFont() and just repoint these two constants —
-// nothing else in buildAndDownloadMrfPdf_ needs to change.
 const FONT_ITEMS = 'helvetica';
 const FONT_LABELS = 'helvetica';
 
@@ -33,9 +23,6 @@ const FONT_LABELS = 'helvetica';
 })();
 
 // ===================== API HELPERS =====================
-// Same defensive JSON handling as the inventory app: Apps Script can
-// occasionally return an HTML error page instead of JSON under load, so we
-// parse safely and retry once before giving up.
 
 async function parseJsonResponse_(resp) {
   const text = await resp.text();
@@ -69,7 +56,7 @@ async function apiGet(action, params, _isRetry) {
 async function apiPost(action, payload, _isRetry) {
   const resp = await fetch(API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({ action: action, payload: payload })
   });
   try {
@@ -91,7 +78,6 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-// Local YYYY-MM-DD (avoids the UTC-shift issue with toISOString for date-only inputs).
 function todayIso_() {
   const d = new Date();
   const y = d.getFullYear();
@@ -128,10 +114,6 @@ const msg = document.getElementById('msg');
 let pending = [];
 
 // ===================== MRF# PREVIEW =====================
-// Unreserved — just shows what the number WOULD be right now (already
-// formatted as e.g. "MRF264200" by the backend). The real number is
-// assigned atomically by the backend at submit time and may differ
-// slightly if someone else submitted in between.
 
 async function loadMrfPreview() {
   try {
@@ -143,7 +125,7 @@ async function loadMrfPreview() {
   }
 }
 
-// ===================== DROPDOWNS (pulled live from Smartsheet's own options) =====================
+// ===================== DROPDOWNS =====================
 
 function fillSelect(selectEl, options, placeholder) {
   selectEl.innerHTML = '';
@@ -183,12 +165,6 @@ async function loadRequestorOptions() {
   }
 }
 
-// ===================== ITEM SUGGESTIONS (not a strict dropdown) =====================
-// Populates the datalist from the inventory sheet's "Item" column. Because
-// it's a <datalist> (not a <select>), the field still accepts any text the
-// user types even if it doesn't match a suggestion — this just fails
-// quietly and leaves the field as free text if the catalog can't load.
-
 async function loadItemOptions() {
   try {
     const options = await apiGet('getItemOptions');
@@ -199,9 +175,7 @@ async function loadItemOptions() {
       o.value = val;
       itemRequestedListEl.appendChild(o);
     });
-  } catch (err) {
-    // Silent — Item Requested just stays a plain free-text field.
-  }
+  } catch (err) { }
 }
 
 // ===================== ADD ITEM =====================
@@ -248,18 +222,7 @@ addItemBtn.addEventListener('click', function () {
   itemRequestedInput.focus();
 });
 
-// ===================== PRINTABLE MRF PDF =====================
-// Draws the exact printed "MATERIAL REQUEST FORM" layout (title bar, the
-// two-column field block, the material/inventory/end-user table, and the
-// signature footer) and auto-downloads it right after a successful submit.
-// Release / Request / Receiver columns and Checked By / Approved By lines
-// are intentionally left blank — they're filled in by hand later. Purpose
-// is always "Req. Materials" since this form only ever requests materials.
-//
-// Font usage matches the printed form's intent: FONT_ITEMS (Arial
-// stand-in) for the item description table, FONT_LABELS (Tahoma stand-in)
-// for everything else — date/department/deadlines/labels and the
-// signature block. Both currently resolve to Helvetica (see top of file).
+// ===================== PRINTABLE MRF PDF (A5 PORTRAIT) =====================
 
 function formatDateDisplay_(iso) {
   if (!iso) return '';
@@ -268,241 +231,179 @@ function formatDateDisplay_(iso) {
   return parts[1] + '/' + parts[2] + '/' + parts[0];
 }
 
-// ---- Font auto-fit ----
-// Mirrors Google Sheets' own "shrink to fit" behavior: text is drawn as
-// large as possible (up to MAX_FONT_SIZE, matching the largest usable size
-// in Sheets) and only steps down from there if it's too wide for the cell
-// it sits in — never grows past the max, never shrinks below MIN_FONT_SIZE.
-const MAX_FONT_SIZE = 25; // pt
-const MIN_FONT_SIZE = 6;  // pt
-
-function fitFontSize_(doc, text, font, style, maxWidth, maxSize, minSize) {
-  const cap = Math.min(maxSize || MAX_FONT_SIZE, MAX_FONT_SIZE);
-  const floor = minSize || MIN_FONT_SIZE;
-  let size = cap;
-  doc.setFont(font, style);
-  doc.setFontSize(size);
-  const str = String(text == null ? '' : text);
-  if (!str) return size;
-  while (size > floor && doc.getTextWidth(str) > maxWidth) {
-    size -= 0.5;
-    doc.setFontSize(size);
-  }
-  return size;
-}
-
 function buildAndDownloadMrfPdf_(payload, res) {
   const { jsPDF } = window.jspdf;
 
-  // ---- Row grid ----
-  // Every row is exactly 55px tall, matching the source Google Sheet's row
-  // height exactly. The title bar and the MATERIAL DESCRIPTION / INVENTORY
-  // / END USER header are each 2 rows merged (110px), same as the sheet.
-  const ROW_H = 55;
-  const HEADER_H = ROW_H * 2; // 110px
-  const MIN_TABLE_ROWS = 13;  // matches the sheet's item rows (13–25)
-  const FIELD_ROWS = 4;       // date/department/purpose/lob + the 4 right-side fields
-  const FOOTER_ROWS = 4;      // requested/checked, supervisor labels, approved by, oic supervisor
+  // Dimensions: Half A4 (A5) is 5.83 x 8.27 inches
+  // 1 inch = 72 points
+  const margin = 0.215 * 72; 
+  const pageW = 5.83 * 72;   
+  const pageH = 8.27 * 72;   
+  
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'pt',
+    format: [pageW, pageH]
+  });
 
-  const margin = 20;
-  const contentH =
-    ROW_H +                    // MRF# line
-    HEADER_H +                 // title bar
-    ROW_H * FIELD_ROWS +       // field block
-    ROW_H +                    // blank spacer row
-    HEADER_H +                 // MATERIAL DESCRIPTION / INVENTORY / END USER
-    ROW_H +                    // QUANTITY / UOM / SIZE / ... headers
-    ROW_H * MIN_TABLE_ROWS +   // item rows
-    ROW_H * FOOTER_ROWS;       // signature block
-
-  const pageW = 850;
-  const pageH = margin * 2 + contentH;
-  // Page is sized exactly to the content grid above (unit: px, at the same
-  // 55px-per-row scale as the sheet) rather than a fixed A4/Letter sheet —
-  // that's what keeps every row exactly 55px without stretching or cropping.
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'px', format: [pageW, pageH] });
-  const contentW = pageW - margin * 2;
+  const contentW = pageW - (margin * 2);
+  const rowH = 14.5; 
   let y = margin;
 
-  // ---- MRF# line ----
+  // --- 1. MRF# Header ---
+  doc.setFont(FONT_LABELS, 'bold');
+  doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
-  fitFontSize_(doc, 'MRF#', FONT_LABELS, 'bold', 90, 18);
-  doc.text('MRF#', pageW - margin - 170, y + ROW_H / 2 + 6);
-  doc.setTextColor(200, 0, 0);
+  doc.text('MRF#', pageW - margin - 55, y + 10);
+  
+  doc.setTextColor(200, 0, 0); // Red Color
+  doc.setFontSize(11);
   const mrfDigits = String(res.mrfNumber).replace(/^MRF/i, '');
-  fitFontSize_(doc, mrfDigits, FONT_LABELS, 'bold', 110, 20);
-  doc.text(mrfDigits, pageW - margin - 100, y + ROW_H / 2 + 6);
-  doc.setTextColor(0, 0, 0);
-  y += ROW_H;
+  doc.text(mrfDigits, pageW - margin - 30, y + 10);
+  y += 15;
 
-  // ---- Title bar (2 rows merged) ----
+  // --- 2. Black Title Bar ---
   doc.setFillColor(0, 0, 0);
-  doc.rect(margin, y, contentW, HEADER_H, 'F');
+  doc.rect(margin, y, contentW, 18, 'F');
   doc.setTextColor(255, 255, 255);
-  fitFontSize_(doc, 'MATERIAL REQUEST FORM', FONT_LABELS, 'bold', contentW - 60, MAX_FONT_SIZE);
-  doc.text('MATERIAL REQUEST FORM', pageW / 2, y + HEADER_H / 2 + 8, { align: 'center' });
-  doc.setTextColor(0, 0, 0);
-  y += HEADER_H;
+  doc.setFontSize(10);
+  doc.text('MATERIAL REQUEST FORM', pageW / 2, y + 12, { align: 'center' });
+  y += 18;
 
-  // ---- Field rows ----
-  const leftLabelX = margin;
-  const leftLineX1 = margin + 110;
-  const leftLineX2 = margin + contentW / 2 - 20;
-  const rightLabelX = margin + contentW / 2 + 15;
-  const rightLineX1 = rightLabelX + 160;
-  const rightLineX2 = margin + contentW;
+  // --- 3. Field Block ---
+  const col1X = margin;
+  const col1LineX = margin + 55;
+  const col2X = pageW / 2 + 10;
+  const col2LineX = col2X + 75;
+  const lineEnd1 = pageW / 2 - 5;
+  const lineEnd2 = pageW - margin;
 
-  function drawFieldRow(labelX, lineX1, lineX2, rowY, label, value) {
+  function drawField(label, value, x, lineX, endX, curY) {
     doc.setFont(FONT_LABELS, 'bold');
-    doc.setFontSize(13);
+    doc.setFontSize(7);
     doc.setTextColor(0, 0, 0);
-    doc.text(label, labelX, rowY + ROW_H - 18);
+    doc.text(label, x, curY + 10);
     doc.setDrawColor(0);
-    doc.setLineWidth(1);
-    doc.line(lineX1, rowY + ROW_H - 16, lineX2, rowY + ROW_H - 16);
+    doc.setLineWidth(0.5);
+    doc.line(lineX, curY + 11, endX, curY + 11);
     if (value) {
-      fitFontSize_(doc, String(value), FONT_LABELS, 'bold', lineX2 - lineX1 - 8, MAX_FONT_SIZE, 9);
-      doc.text(String(value), (lineX1 + lineX2) / 2, rowY + ROW_H - 22, { align: 'center' });
+      doc.setFontSize(8);
+      doc.text(String(value).toUpperCase(), (lineX + endX) / 2, curY + 9, { align: 'center' });
     }
   }
 
   const leftFields = [
     ['DATE:', formatDateDisplay_(payload.date)],
-    ['DEPARTMENT', payload.requestor],
-    ['PURPOSE:', 'Req. Materials'],
+    ['DEPARTMENT:', payload.requestor],
+    ['PURPOSE:', 'REQ.MATERIALS'],
     ['LOB:', payload.lob]
   ];
   const rightFields = [
     ['PROJECT NAME:', payload.projectName],
     ['SALES ORDER:', payload.soNumber],
-    ['PROCUREMENT DEADLINE', formatDateDisplay_(payload.procurementDeadline)],
+    ['PROCUREMENT DEADLINE:', formatDateDisplay_(payload.procurementDeadline)],
     ['PRODUCTION DEADLINE:', formatDateDisplay_(payload.productionDeadline)]
   ];
-  for (let i = 0; i < FIELD_ROWS; i++) {
-    const rowY = y + i * ROW_H;
-    drawFieldRow(leftLabelX, leftLineX1, leftLineX2, rowY, leftFields[i][0], leftFields[i][1]);
-    drawFieldRow(rightLabelX, rightLineX1, rightLineX2, rowY, rightFields[i][0], rightFields[i][1]);
-  }
-  y += ROW_H * FIELD_ROWS;
-  y += ROW_H; // blank spacer row
 
-  // ---- Item table ----
-  // Column proportions taken from the original form, scaled to the page's
-  // content width so the table always fits edge-to-edge.
-  const colFractions = [20, 20, 30, 110, 25, 25, 33.4]; // Qty, UOM, Size, Item Description, Release, Request, Receiver
-  const fractionSum = colFractions.reduce(function (a, b) { return a + b; }, 0);
-  const colWidths = colFractions.map(function (f) { return (contentW * f) / fractionSum; });
+  for (let i = 0; i < 4; i++) {
+    drawField(leftFields[i][0], leftFields[i][1], col1X, col1LineX, lineEnd1, y);
+    drawField(rightFields[i][0], rightFields[i][1], col2X, col2LineX, lineEnd2, y);
+    y += rowH;
+  }
+  y += 5;
+
+  // --- 4. Material Table ---
+  const colWidths = [30, 35, 55, 148, 30, 30, 40];
   const colX = [margin];
   for (let i = 0; i < colWidths.length; i++) colX.push(colX[i] + colWidths[i]);
 
+  doc.setLineWidth(0.5);
   doc.setDrawColor(0);
-  doc.setLineWidth(1);
 
-  // Span header (2 rows merged): MATERIAL DESCRIPTION / INVENTORY / END USER
-  const span1W = colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
-  const span2W = colWidths[4] + colWidths[5];
-  const span3W = colWidths[6];
+  // Red Header Row 1 (Merged)
   doc.setTextColor(200, 0, 0);
-  doc.rect(colX[0], y, span1W, HEADER_H);
-  fitFontSize_(doc, 'MATERIAL DESCRIPTION', FONT_LABELS, 'bold', span1W - 20, MAX_FONT_SIZE);
-  doc.text('MATERIAL DESCRIPTION', colX[0] + span1W / 2, y + HEADER_H / 2 + 6, { align: 'center' });
-  doc.rect(colX[4], y, span2W, HEADER_H);
-  fitFontSize_(doc, 'INVENTORY', FONT_LABELS, 'bold', span2W - 12, MAX_FONT_SIZE);
-  doc.text('INVENTORY', colX[4] + span2W / 2, y + HEADER_H / 2 + 6, { align: 'center' });
-  doc.rect(colX[6], y, span3W, HEADER_H);
-  fitFontSize_(doc, 'END USER', FONT_LABELS, 'bold', span3W - 12, MAX_FONT_SIZE);
-  doc.text('END USER', colX[6] + span3W / 2, y + HEADER_H / 2 + 6, { align: 'center' });
-  doc.setTextColor(0, 0, 0);
-  y += HEADER_H;
+  doc.setFontSize(7);
+  const span1 = colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
+  doc.rect(colX[0], y, span1, 12);
+  doc.text('MATERIAL DESCRIPTION', colX[0] + span1/2, y + 8, { align: 'center' });
+  const span2 = colWidths[4] + colWidths[5];
+  doc.rect(colX[4], y, span2, 12);
+  doc.text('INVENTORY', colX[4] + span2/2, y + 8, { align: 'center' });
+  const span3 = colWidths[6];
+  doc.rect(colX[6], y, span3, 12);
+  doc.text('END USER', colX[6] + span3/2, y + 8, { align: 'center' });
+  y += 12;
 
-  // Column header row
+  // Header Row 2
   const headers = ['QUANTITY', 'UOM', 'SIZE', 'ITEM DESCRIPTION', 'RELEASE', 'REQUEST', 'RECEIVER'];
-  headers.forEach(function (h, i) {
-    doc.rect(colX[i], y, colWidths[i], ROW_H);
-    fitFontSize_(doc, h, FONT_LABELS, 'bold', colWidths[i] - 8, MAX_FONT_SIZE);
-    doc.text(h, colX[i] + colWidths[i] / 2, y + ROW_H / 2 + 4, { align: 'center' });
+  doc.setTextColor(0, 0, 0);
+  headers.forEach((h, i) => {
+    doc.rect(colX[i], y, colWidths[i], 12);
+    doc.setFontSize(6);
+    doc.text(h, colX[i] + colWidths[i]/2, y + 8, { align: 'center' });
   });
-  y += ROW_H;
+  y += 12;
 
-  // Item rows — Release / Request / Receiver stay blank. Always draws
-  // MIN_TABLE_ROWS ruled rows (matching the sheet's rows 13–25), even if
-  // this batch has fewer items — the extra rows stay blank rather than
-  // shrinking the table. Item description text uses FONT_ITEMS (Arial
-  // stand-in); each cell's font size auto-fits its column width.
-  for (let r = 0; r < MIN_TABLE_ROWS; r++) {
-    headers.forEach(function (h, i) { doc.rect(colX[i], y, colWidths[i], ROW_H); });
+  // Item Rows (Forced to 15 rows to fill the page properly)
+  for (let r = 0; r < 15; r++) {
+    headers.forEach((h, i) => doc.rect(colX[i], y, colWidths[i], rowH));
     const it = payload.items[r];
     if (it) {
-      fitFontSize_(doc, String(it.qty), FONT_ITEMS, 'normal', colWidths[0] - 8, MAX_FONT_SIZE);
-      doc.text(String(it.qty), colX[0] + colWidths[0] / 2, y + ROW_H / 2 + 4, { align: 'center' });
-      fitFontSize_(doc, String(it.uom || ''), FONT_ITEMS, 'normal', colWidths[1] - 8, MAX_FONT_SIZE);
-      doc.text(String(it.uom || ''), colX[1] + colWidths[1] / 2, y + ROW_H / 2 + 4, { align: 'center' });
-      fitFontSize_(doc, String(it.size || ''), FONT_ITEMS, 'normal', colWidths[2] - 8, MAX_FONT_SIZE);
-      doc.text(String(it.size || ''), colX[2] + colWidths[2] / 2, y + ROW_H / 2 + 4, { align: 'center' });
-      fitFontSize_(doc, String(it.itemRequested), FONT_ITEMS, 'normal', colWidths[3] - 12, MAX_FONT_SIZE);
-      doc.text(String(it.itemRequested), colX[3] + 6, y + ROW_H / 2 + 4, { align: 'left' });
+      doc.setFontSize(7);
+      doc.text(String(it.qty), colX[0] + colWidths[0]/2, y + 10, { align: 'center' });
+      doc.text(String(it.uom), colX[1] + colWidths[1]/2, y + 10, { align: 'center' });
+      doc.text(String(it.size || ''), colX[2] + colWidths[2]/2, y + 10, { align: 'center' });
+      doc.text(String(it.itemRequested).toUpperCase(), colX[3] + 4, y + 10);
     }
-    y += ROW_H;
+    y += rowH;
   }
+  y += 10;
 
-  // ---- Footer / signatures (4 rows, 55px each) ----
-  const fLeftLabelX = margin;
-  const fLeftLineX1 = margin + 110;
-  const fLeftLineX2 = margin + contentW * 0.42;
-  const fRightLabelX = margin + contentW * 0.55;
-  const fRightLineX1 = fRightLabelX + 110;
-  const fRightLineX2 = margin + contentW;
+  // --- 5. Footer / Signatures ---
+  const footerCol1 = margin;
+  const footerCol1Line = margin + 65;
+  const footerCol1End = margin + 170;
+  const footerCol2 = pageW / 2 + 30;
+  const footerCol2Line = footerCol2 + 55;
+  const footerCol2End = pageW - margin;
 
-  // Row: REQUESTED BY / CHECKED BY
-  doc.setFont(FONT_LABELS, 'bold');
-  doc.setFontSize(13);
-  doc.setTextColor(0, 0, 0);
-  doc.text('REQUESTED BY:', fLeftLabelX, y + ROW_H - 18);
-  doc.line(fLeftLineX1, y + ROW_H - 16, fLeftLineX2, y + ROW_H - 16);
+  doc.setFontSize(7);
+  doc.text('REQUESTED BY:', footerCol1, y + 10);
+  doc.line(footerCol1Line, y + 11, footerCol1End, y + 11);
   if (payload.requestedBy) {
-    fitFontSize_(doc, payload.requestedBy, FONT_LABELS, 'bold', fLeftLineX2 - fLeftLineX1 - 8, MAX_FONT_SIZE, 9);
-    doc.text(String(payload.requestedBy), (fLeftLineX1 + fLeftLineX2) / 2, y + ROW_H - 22, { align: 'center' });
+     doc.text(payload.requestedBy.toUpperCase(), (footerCol1Line + footerCol1End)/2, y + 9, { align: 'center' });
   }
-  doc.setFont(FONT_LABELS, 'bold');
-  doc.setFontSize(13);
-  doc.text('CHECKED BY:', fRightLabelX, y + ROW_H - 18);
-  doc.line(fRightLineX1, y + ROW_H - 16, fRightLineX2, y + ROW_H - 16);
-  y += ROW_H;
 
-  // Row: SUPERVISOR/ MANAGER ... INVENTORY PERSONNEL sub-labels
-  doc.setFont(FONT_LABELS, 'normal');
-  doc.setFontSize(11);
+  doc.text('CHECKED BY:', footerCol2, y + 10);
+  doc.line(footerCol2Line, y + 11, footerCol2End, y + 11);
+  y += 12;
+
+  doc.setTextColor(200, 0, 0); // Red sub-labels
+  doc.setFontSize(6);
+  doc.text('SUPERVISOR/ MANAGER', footerCol1, y + 6);
+  doc.text('INVENTORY PERSONNEL', footerCol2, y + 6);
+  doc.setTextColor(0,0,0);
+  doc.text('NAME AND SIGNATURES', (footerCol1Line + footerCol1End)/2, y + 6, { align: 'center' });
+  doc.text('NAME AND SIGNATURES', (footerCol2Line + footerCol2End)/2, y + 6, { align: 'center' });
+  y += 18;
+
+  const midLineS = pageW / 2 - 50;
+  const midLineE = pageW / 2 + 100;
+  doc.setFontSize(7);
+  doc.text('APPROVED BY:', midLineS - 55, y + 10);
+  doc.line(midLineS, y + 11, midLineE, y + 11);
+  y += 12;
+
   doc.setTextColor(200, 0, 0);
-  doc.text('SUPERVISOR/ MANAGER', fLeftLabelX, y + 18);
-  doc.text('INVENTORY PERSONNEL', fRightLabelX, y + 18);
-  doc.setTextColor(0, 0, 0);
-  doc.text('NAME AND SIGNATURES', (fLeftLineX1 + fLeftLineX2) / 2, y + 18, { align: 'center' });
-  doc.text('NAME AND SIGNATURES', (fRightLineX1 + fRightLineX2) / 2, y + 18, { align: 'center' });
-  y += ROW_H;
-
-  // Row: APPROVED BY
-  const aLabelX = margin + contentW * 0.34;
-  const aLineX1 = aLabelX + 100;
-  const aLineX2 = margin + contentW * 0.75;
-  doc.setFont(FONT_LABELS, 'bold');
-  doc.setFontSize(13);
-  doc.text('APPROVED BY:', aLabelX, y + ROW_H - 18);
-  doc.line(aLineX1, y + ROW_H - 16, aLineX2, y + ROW_H - 16);
-  y += ROW_H;
-
-  // Row: OIC SUPERVISOR sub-label
-  doc.setFont(FONT_LABELS, 'normal');
-  doc.setFontSize(11);
-  doc.setTextColor(200, 0, 0);
-  doc.text('OIC SUPERVISOR', aLabelX, y + 18);
-  doc.setTextColor(0, 0, 0);
-  doc.text('NAME AND SIGNATURES', (aLineX1 + aLineX2) / 2, y + 18, { align: 'center' });
-  y += ROW_H;
+  doc.setFontSize(6);
+  doc.text('OIC SUPERVISOR', midLineS - 55, y + 6);
+  doc.setTextColor(0,0,0);
+  doc.text('NAME AND SIGNATURES', (midLineS + midLineE)/2, y + 6, { align: 'center' });
 
   doc.save(res.mrfNumber + '.pdf');
 }
 
-// ===================== SUBMIT (ONE MRF# FOR THE WHOLE BATCH) =====================
+// ===================== SUBMIT BATCH =====================
 
 submitAllBtn.addEventListener('click', async function () {
   if (!pending.length) return;
@@ -555,7 +456,6 @@ submitAllBtn.addEventListener('click', async function () {
       msg.innerHTML += '<br><span class="hint">(PDF download failed: ' + escapeHtml(pdfErr.message || String(pdfErr)) + ')</span>';
     }
 
-    // Reset everything for the next request.
     pending = [];
     renderTable();
     projectNameInput.value = '';
@@ -566,11 +466,11 @@ submitAllBtn.addEventListener('click', async function () {
     requestedByInput.value = '';
     procurementDeadlineInput.value = '';
     productionDeadlineInput.value = '';
-    loadMrfPreview(); // fetch a fresh preview for the next submission
+    loadMrfPreview();
   } catch (err) {
     msg.className = 'msg error';
     msg.textContent = err.message || String(err);
-    submitAllBtn.disabled = false; // let them retry without losing the staged items
+    submitAllBtn.disabled = false;
   }
 });
 
