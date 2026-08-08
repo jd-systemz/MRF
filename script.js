@@ -150,6 +150,7 @@ async function loadLobOptions() {
     const options = await apiGet('getLobOptions');
     if (options.error) throw new Error(options.error);
     fillSelect(lobSelect, options, 'Select LOB');
+    if (options.indexOf('ACP') !== -1) lobSelect.value = 'ACP';
   } catch (err) {
     fillSelect(lobSelect, [], 'Not available');
   }
@@ -285,7 +286,7 @@ submitAllBtn.addEventListener('click', async function () {
     renderTable();
     projectNameInput.value = '';
     soNumberInput.value = '';
-    lobSelect.value = '';
+    lobSelect.value = lobSelect.querySelector('option[value="ACP"]') ? 'ACP' : '';
     mrfDateInput.value = todayIso_();
     requestorSelect.value = '';
     requestedByInput.value = '';
