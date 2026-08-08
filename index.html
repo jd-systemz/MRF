@@ -12,30 +12,36 @@
       <h1>Material Request Form</h1>
       <button id="themeToggle" class="icon-btn" aria-label="Toggle light/dark mode">&#127769;</button>
     </header>
-
     <main id="content">
       <div class="card">
         <p class="hint" style="margin-top:-6px;">One MRF# per submission — add as many items as you need below, then submit once.</p>
-
         <div class="mrf-banner" id="mrfBanner">
           <span class="mrf-banner-label">MRF#</span>
           <span class="mrf-banner-value" id="mrfPreview">...</span>
           <span class="hint">(assigned automatically on submit)</span>
         </div>
-
         <div class="row">
           <div class="field">
-            <label for="soNumber">SO# <span class="req">*</span></label>
-            <input type="text" id="soNumber" placeholder="e.g. SO20728" />
+            <label for="projectName">Project Name <span class="req">*</span></label>
+            <input type="text" id="projectName" placeholder="e.g. WIZARDS OF ADS" />
           </div>
           <div class="field">
-            <label for="lob">LOB</label>
+            <label for="soNumber">SO#</label>
+            <input type="text" id="soNumber" placeholder="e.g. SO20728" />
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="lob">LOB <span class="req">*</span></label>
             <select id="lob">
               <option value="">Loading...</option>
             </select>
           </div>
+          <div class="field">
+            <label for="mrfDate">Date <span class="req">*</span></label>
+            <input type="date" id="mrfDate" />
+          </div>
         </div>
-
         <div class="row">
           <div class="field">
             <label for="requestor">Requestor <span class="req">*</span></label>
@@ -45,11 +51,10 @@
             <div id="requestorError" class="msg error hidden"></div>
           </div>
           <div class="field">
-            <label for="requestedBy">Requested by <span class="hint">(full name)</span></label>
+            <label for="requestedBy">Requested by <span class="req">*</span> <span class="hint">(full name)</span></label>
             <input type="text" id="requestedBy" placeholder="Full name" />
           </div>
         </div>
-
         <div class="row">
           <div class="field">
             <label for="procurementDeadline">Procurement Deadline</label>
@@ -60,9 +65,7 @@
             <input type="date" id="productionDeadline" />
           </div>
         </div>
-
         <hr class="divider" />
-
         <div class="line-entry">
           <div class="field">
             <label for="itemRequested">Item Requested <span class="req">*</span></label>
@@ -84,7 +87,6 @@
           </div>
           <button type="button" id="addItemBtn" class="btn btn-primary">+ Add Item</button>
         </div>
-
         <div class="pending-list">
           <h3>Items in this request (<span id="itemCount">0</span>)</h3>
           <div class="table-wrap">
@@ -95,12 +97,10 @@
           </div>
           <button type="button" id="submitAllBtn" class="btn btn-primary" style="width:100%;" disabled>Submit Request</button>
         </div>
-
         <div id="msg" class="msg hidden"></div>
       </div>
     </main>
   </div>
-
   <script src="script.js"></script>
 </body>
 </html>
