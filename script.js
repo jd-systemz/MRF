@@ -100,6 +100,7 @@ const procurementDeadlineInput = document.getElementById('procurementDeadline');
 const productionDeadlineInput = document.getElementById('productionDeadline');
 
 const itemRequestedInput = document.getElementById('itemRequested');
+const itemRequestedListEl = document.getElementById('itemRequestedList');
 const itemQtyInput = document.getElementById('itemQty');
 const itemUomInput = document.getElementById('itemUom');
 const itemSizeInput = document.getElementById('itemSize');
@@ -164,6 +165,27 @@ async function loadRequestorOptions() {
     fillSelect(requestorSelect, [], 'Not available');
     requestorErrorEl.textContent = err.message || String(err);
     requestorErrorEl.classList.remove('hidden');
+  }
+}
+
+// ===================== ITEM SUGGESTIONS (not a strict dropdown) =====================
+// Populates the datalist from the inventory sheet's "Item" column. Because
+// it's a <datalist> (not a <select>), the field still accepts any text the
+// user types even if it doesn't match a suggestion — this just fails
+// quietly and leaves the field as free text if the catalog can't load.
+
+async function loadItemOptions() {
+  try {
+    const options = await apiGet('getItemOptions');
+    if (options.error) throw new Error(options.error);
+    itemRequestedListEl.innerHTML = '';
+    options.forEach(function (val) {
+      const o = document.createElement('option');
+      o.value = val;
+      itemRequestedListEl.appendChild(o);
+    });
+  } catch (err) {
+    // Silent — Item Requested just stays a plain free-text field.
   }
 }
 
@@ -284,3 +306,4 @@ mrfDateInput.value = todayIso_();
 loadMrfPreview();
 loadLobOptions();
 loadRequestorOptions();
+loadItemOptions();
