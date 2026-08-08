@@ -479,6 +479,9 @@ submitAllBtn.addEventListener('click', async function () {
     if (res.sheetUrl) {
       msg.innerHTML += ' <a href="' + res.sheetUrl + '" target="_blank" rel="noopener" class="sheet-link-inline">View in Smartsheet &#8599;</a>';
     }
+    if (res.printSheetWarning) {
+      msg.innerHTML += '<br><span class="hint">' + escapeHtml(res.printSheetWarning) + '</span>';
+    }
 
     try {
       buildAndDownloadMrfPdf_(payload, res);
