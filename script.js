@@ -2,20 +2,6 @@
 const API_URL = 'https://script.google.com/macros/s/AKfycbw9yEAB-kOOOtp3zxZbNy-UnROPMFSUKw2LIIVaQL7lZIGR9-t8Hiyr3163WsWAukAD6w/exec';
 const THEME_KEY = 'mrf_form_theme';
 
-// ===================== PDF FONTS =====================
-// jsPDF only ships 3 built-in font families: Helvetica, Times, Courier.
-// Arial and Tahoma aren't available without embedding licensed .ttf files,
-// so both stand-ins below resolve to Helvetica — it's metrically identical
-// to Arial (same letter widths) and is the closest available match to
-// Tahoma too, since no other built-in sans-serif exists.
-//   FONT_ITEMS  -> stands in for Arial  (item description table)
-//   FONT_LABELS -> stands in for Tahoma (date/department/deadlines/signatories)
-// If real Arial/Tahoma .ttf files become available, embed them with
-// doc.addFileToVFS()/doc.addFont() and just repoint these two constants —
-// nothing else in buildAndDownloadMrfPdf_ needs to change.
-const FONT_ITEMS = 'helvetica';
-const FONT_LABELS = 'helvetica';
-
 // ===================== THEME (light / dark) =====================
 
 (function () {
@@ -255,11 +241,6 @@ addItemBtn.addEventListener('click', function () {
 // Release / Request / Receiver columns and Checked By / Approved By lines
 // are intentionally left blank — they're filled in by hand later. Purpose
 // is always "Req. Materials" since this form only ever requests materials.
-//
-// Font usage matches the printed form's intent: FONT_ITEMS (Arial
-// stand-in) for the item description table, FONT_LABELS (Tahoma stand-in)
-// for everything else — date/department/deadlines/labels and the
-// signature block. Both currently resolve to Helvetica (see top of file).
 
 function formatDateDisplay_(iso) {
   if (!iso) return '';
@@ -278,7 +259,7 @@ function buildAndDownloadMrfPdf_(payload, res) {
   let y = margin;
 
   // ---- MRF# (top right) ----
-  doc.setFont(FONT_LABELS, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.setTextColor(0, 0, 0);
   doc.text('MRF#', pageW - margin - 38, y + 5);
@@ -291,7 +272,6 @@ function buildAndDownloadMrfPdf_(payload, res) {
   doc.setFillColor(0, 0, 0);
   doc.rect(margin, y, contentW, 9, 'F');
   doc.setTextColor(255, 255, 255);
-  doc.setFont(FONT_LABELS, 'bold');
   doc.setFontSize(15);
   doc.text('MATERIAL REQUEST FORM', pageW / 2, y + 6.3, { align: 'center' });
   doc.setTextColor(0, 0, 0);
@@ -307,14 +287,14 @@ function buildAndDownloadMrfPdf_(payload, res) {
   const rightLineX2 = margin + contentW;
 
   function drawFieldRow(labelX, lineX1, lineX2, rowY, label, value) {
-    doc.setFont(FONT_LABELS, 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.text(label, labelX, rowY + 5.5);
     doc.setDrawColor(0);
     doc.setLineWidth(0.25);
     doc.line(lineX1, rowY + 6.2, lineX2, rowY + 6.2);
     if (value) {
-      doc.setFont(FONT_LABELS, 'bold');
+      doc.setFont('helvetica', 'bold');
       doc.setFontSize(9.5);
       doc.text(String(value), lineX1 + 1, rowY + 5.3);
     }
@@ -352,7 +332,7 @@ function buildAndDownloadMrfPdf_(payload, res) {
   doc.setDrawColor(0);
   doc.setLineWidth(0.25);
   doc.setTextColor(200, 0, 0);
-  doc.setFont(FONT_LABELS, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
 
   // Row 1: MATERIAL DESCRIPTION / INVENTORY / END USER spans
@@ -371,7 +351,6 @@ function buildAndDownloadMrfPdf_(payload, res) {
   const headers = ['QUANTITY', 'UOM', 'SIZE', 'ITEM DESCRIPTION', 'RELEASE', 'REQUEST', 'RECEIVER'];
   const h2 = 7;
   doc.setTextColor(0, 0, 0);
-  doc.setFont(FONT_LABELS, 'bold');
   doc.setFontSize(7.5);
   headers.forEach(function (h, i) {
     doc.rect(colX[i], y, colWidths[i], h2);
@@ -383,14 +362,13 @@ function buildAndDownloadMrfPdf_(payload, res) {
   // fixed number of ruled rows (matching the printed form's spacing), even
   // if this batch has fewer items than that — the extra rows stay blank
   // rather than shrinking the table down to just the filled rows.
-  // Item description text uses FONT_ITEMS (Arial stand-in).
   const MIN_TABLE_ROWS = 12;
   const footerReserve = 42;
   const pageH = doc.internal.pageSize.getHeight();
   const totalRows = Math.max(payload.items.length, MIN_TABLE_ROWS);
   const availableH = pageH - footerReserve - y;
   const itemRowH = Math.max(6, Math.min(12, availableH / totalRows));
-  doc.setFont(FONT_ITEMS, 'normal');
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   for (let r = 0; r < totalRows; r++) {
     headers.forEach(function (h, i) { doc.rect(colX[i], y, colWidths[i], itemRowH); });
@@ -413,26 +391,25 @@ function buildAndDownloadMrfPdf_(payload, res) {
   const fRightLineX1 = fRightLabelX + 26;
   const fRightLineX2 = margin + contentW;
 
-  doc.setFont(FONT_LABELS, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(0, 0, 0);
   doc.text('REQUESTED BY:', fLeftLabelX, y);
   doc.line(fLeftLineX1, y + 0.8, fLeftLineX2, y + 0.8);
-  doc.setFont(FONT_LABELS, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.text(String(payload.requestedBy || ''), fLeftLineX1 + 1, y - 0.8);
 
   doc.text('CHECKED BY:', fRightLabelX, y);
   doc.line(fRightLineX1, y + 0.8, fRightLineX2, y + 0.8);
 
   y += 8;
-  doc.setFont(FONT_LABELS, 'normal');
   doc.setFontSize(8);
   doc.setTextColor(200, 0, 0);
   doc.text('SUPERVISOR/ MANAGER', fLeftLabelX, y);
   doc.setTextColor(200, 0, 0);
   doc.text('INVENTORY PERSONNEL', fRightLabelX, y);
   doc.setTextColor(0, 0, 0);
-  doc.setFont(FONT_LABELS, 'normal');
+  doc.setFont('helvetica', 'normal');
   doc.text('NAME AND SIGNATURES', (fLeftLineX1 + fLeftLineX2) / 2, y, { align: 'center' });
   doc.text('NAME AND SIGNATURES', (fRightLineX1 + fRightLineX2) / 2, y, { align: 'center' });
 
@@ -440,18 +417,17 @@ function buildAndDownloadMrfPdf_(payload, res) {
   const aLabelX = margin + contentW * 0.34;
   const aLineX1 = aLabelX + 28;
   const aLineX2 = margin + contentW * 0.75;
-  doc.setFont(FONT_LABELS, 'bold');
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.text('APPROVED BY:', aLabelX, y);
   doc.line(aLineX1, y + 0.8, aLineX2, y + 0.8);
 
   y += 8;
-  doc.setFont(FONT_LABELS, 'normal');
   doc.setFontSize(8);
   doc.setTextColor(200, 0, 0);
   doc.text('OIC SUPERVISOR', aLabelX, y);
   doc.setTextColor(0, 0, 0);
-  doc.setFont(FONT_LABELS, 'normal');
+  doc.setFont('helvetica', 'normal');
   doc.text('NAME AND SIGNATURES', (aLineX1 + aLineX2) / 2, y, { align: 'center' });
 
   doc.save(res.mrfNumber + '.pdf');
