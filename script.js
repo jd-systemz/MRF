@@ -1,10 +1,9 @@
 function buildAndDownloadMrfPdf_(payload, res) {
   const { jsPDF } = window.jspdf;
 
-  // Standard A4 Dimensions in points
-  const pageW = 595.44;   
-  const pageH = 841.89;   
-  const margin = 0.215 * 72; // 15.48 pt
+  const pageW = 595.44;   // A4 Width
+  const pageH = 841.89;   // A4 Height
+  const margin = 0.215 * 72; 
   
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -13,48 +12,48 @@ function buildAndDownloadMrfPdf_(payload, res) {
   });
 
   const contentW = pageW - (margin * 2);
-  const rowH = 13.5; // Tighter row height to match the 2nd picture
+  const rowH = 12.0; // Extremely tight spreadsheet-style row height
   let y = margin;
 
   // --- 1. MRF# Header ---
   doc.setFont(FONT_LABELS, 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(7);
   doc.setTextColor(0, 0, 0);
-  doc.text('MRF#', pageW - margin - 50, y + 8);
+  doc.text('MRF#', pageW - margin - 50, y + 6);
   
   doc.setTextColor(200, 0, 0); // Red
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   const mrfDigits = String(res.mrfNumber).replace(/^MRF/i, '');
-  doc.text(mrfDigits, pageW - margin - 25, y + 8);
-  y += 12;
+  doc.text(mrfDigits, pageW - margin - 25, y + 6);
+  y += 10;
 
-  // --- 2. Black Title Bar ---
+  // --- 2. Black Title Bar (Thinner) ---
   doc.setFillColor(0, 0, 0);
-  doc.rect(margin, y, contentW, 16, 'F');
+  doc.rect(margin, y, contentW, 14, 'F');
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(10);
-  doc.text('MATERIAL REQUEST FORM', pageW / 2, y + 11, { align: 'center' });
-  y += 16;
+  doc.setFontSize(9);
+  doc.text('MATERIAL REQUEST FORM', pageW / 2, y + 10, { align: 'center' });
+  y += 14;
 
-  // --- 3. Field Block ---
+  // --- 3. Field Block (Compressed) ---
   const col1X = margin;
   const col1LineX = margin + 50;
-  const col2X = pageW / 2 + 20;
+  const col2X = pageW / 2 + 15;
   const col2LineX = col2X + 80;
   const lineEnd1 = pageW / 2 - 5;
   const lineEnd2 = pageW - margin;
 
   function drawField(label, value, x, lineX, endX, curY) {
     doc.setFont(FONT_LABELS, 'bold');
-    doc.setFontSize(6.5);
+    doc.setFontSize(6);
     doc.setTextColor(0, 0, 0);
-    doc.text(label, x, curY + 9);
+    doc.text(label, x, curY + 8);
     doc.setDrawColor(0);
     doc.setLineWidth(0.5);
-    doc.line(lineX, curY + 10, endX, curY + 10);
+    doc.line(lineX, curY + 9, endX, curY + 9);
     if (value) {
-      doc.setFontSize(8);
-      doc.text(String(value).toUpperCase(), (lineX + endX) / 2, curY + 8.5, { align: 'center' });
+      doc.setFontSize(7.5);
+      doc.text(String(value).toUpperCase(), (lineX + endX) / 2, curY + 8, { align: 'center' });
     }
   }
 
@@ -76,20 +75,19 @@ function buildAndDownloadMrfPdf_(payload, res) {
     drawField(rightFields[i][0], rightFields[i][1], col2X, col2LineX, lineEnd2, y);
     y += rowH;
   }
-  y += 4; // Tiny spacer before table
+  y += 2; // Tiny spacer
 
-  // --- 4. Material Table ---
-  // Ratios: Qty(35), Uom(40), Size(60), Description(220), Rel(30), Req(30), Rec(30)
-  const colWidths = [35, 40, 60, 219, 30, 30, 50]; 
+  // --- 4. Material Table (Compact) ---
+  const colWidths = [30, 35, 55, 229, 25, 25, 45]; 
   const colX = [margin];
   for (let i = 0; i < colWidths.length; i++) colX.push(colX[i] + colWidths[i]);
 
   doc.setLineWidth(0.5);
   doc.setDrawColor(0);
 
-  // Red Header Row 1 (Merged)
+  // Red Header Row 1 (Merged & Thin)
   doc.setTextColor(200, 0, 0);
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   const span1 = colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
   doc.rect(colX[0], y, span1, 10);
   doc.text('MATERIAL DESCRIPTION', colX[0] + span1/2, y + 7, { align: 'center' });
@@ -107,76 +105,72 @@ function buildAndDownloadMrfPdf_(payload, res) {
   const headers = ['QUANTITY', 'UOM', 'SIZE', 'ITEM DESCRIPTION', 'RELEASE', 'REQUEST', 'RECEIVER'];
   doc.setTextColor(0, 0, 0);
   headers.forEach((h, i) => {
-    doc.rect(colX[i], y, colWidths[i], 12);
-    doc.setFontSize(6);
+    doc.rect(colX[i], y, colWidths[i], 11);
+    doc.setFontSize(5.5);
     doc.text(h, colX[i] + colWidths[i]/2, y + 8, { align: 'center' });
   });
-  y += 12;
+  y += 11;
 
-  // Item Rows (Fixed 13 rows)
+  // Item Rows (Fixed 13 rows, tight spacing)
   for (let r = 0; r < 13; r++) {
     headers.forEach((h, i) => doc.rect(colX[i], y, colWidths[i], rowH));
     const it = payload.items[r];
     if (it) {
-      doc.setFontSize(8);
-      doc.text(String(it.qty), colX[0] + colWidths[0]/2, y + 9, { align: 'center' });
-      doc.text(String(it.uom).toUpperCase(), colX[1] + colWidths[1]/2, y + 9, { align: 'center' });
-      doc.text(String(it.size || '').toUpperCase(), colX[2] + colWidths[2]/2, y + 9, { align: 'center' });
-      doc.text(String(it.itemRequested).toUpperCase(), colX[3] + 4, y + 9);
+      doc.setFontSize(7.5);
+      doc.text(String(it.qty), colX[0] + colWidths[0]/2, y + 8.5, { align: 'center' });
+      doc.text(String(it.uom).toUpperCase(), colX[1] + colWidths[1]/2, y + 8.5, { align: 'center' });
+      doc.text(String(it.size || '').toUpperCase(), colX[2] + colWidths[2]/2, y + 8.5, { align: 'center' });
+      doc.text(String(it.itemRequested).toUpperCase(), colX[3] + 4, y + 8.5);
     }
     y += rowH;
   }
-  y += 8;
+  y += 6; // Move signatures closer
 
   // --- 5. Footer / Signatures ---
-  const footL = margin;
-  const footLLine = margin + 55;
-  const footLEnd = margin + 175;
-
-  const footR = pageW / 2 + 50;
-  const footRLine = footR + 50;
+  const footLLine = margin + 50;
+  const footLEnd = margin + 170;
+  const footRLine = pageW / 2 + 50;
   const footREnd = pageW - margin;
 
-  doc.setFontSize(7);
+  doc.setFontSize(6.5);
   doc.setTextColor(0, 0, 0);
   
   // Row 1
-  doc.text('REQUESTED BY:', footL, y + 8);
-  doc.line(footLLine, y + 9, footLEnd, y + 9);
+  doc.text('REQUESTED BY:', margin, y + 7);
+  doc.line(footLLine, y + 8, footLEnd, y + 8);
   if (payload.requestedBy) {
-    doc.text(payload.requestedBy.toUpperCase(), (footLLine + footLEnd)/2, y + 7.5, { align: 'center' });
+    doc.text(payload.requestedBy.toUpperCase(), (footLLine + footLEnd)/2, y + 7, { align: 'center' });
   }
 
-  doc.text('CHECKED BY:', footR, y + 8);
-  doc.line(footRLine, y + 9, footREnd, y + 9);
-  y += 10;
+  doc.text('CHECKED BY:', pageW / 2 + 10, y + 7);
+  doc.line(footRLine, y + 8, footREnd, y + 8);
+  y += 9;
 
   // Row 2 sub-labels
   doc.setTextColor(200, 0, 0);
-  doc.setFontSize(6);
-  doc.text('SUPERVISOR/ MANAGER', footL, y + 6);
-  doc.text('INVENTORY PERSONNEL', footR, y + 6);
+  doc.setFontSize(5.5);
+  doc.text('SUPERVISOR/ MANAGER', margin, y + 5);
+  doc.text('INVENTORY PERSONNEL', pageW / 2 + 10, y + 5);
   doc.setTextColor(0,0,0);
-  doc.text('NAME AND SIGNATURES', (footLLine + footLEnd)/2, y + 6, { align: 'center' });
-  doc.text('NAME AND SIGNATURES', (footRLine + footREnd)/2, y + 6, { align: 'center' });
-  y += 16;
+  doc.text('NAME AND SIGNATURES', (footLLine + footLEnd)/2, y + 5, { align: 'center' });
+  doc.text('NAME AND SIGNATURES', (footRLine + footREnd)/2, y + 5, { align: 'center' });
+  y += 12;
 
   // Row 3: Approved By
-  const appL = pageW / 2 - 60;
-  const appLine = appL + 60;
-  const appEnd = appLine + 150;
+  const appLine = pageW / 2 - 20;
+  const appEnd = appLine + 120;
   
-  doc.setFontSize(7);
-  doc.text('APPROVED BY:', appL, y + 8);
-  doc.line(appLine, y + 9, appEnd, y + 9);
-  y += 10;
+  doc.setFontSize(6.5);
+  doc.text('APPROVED BY:', pageW / 2 - 80, y + 7);
+  doc.line(appLine, y + 8, appEnd, y + 8);
+  y += 9;
 
   // Row 4 sub-label
   doc.setTextColor(200, 0, 0);
-  doc.setFontSize(6);
-  doc.text('OIC SUPERVISOR', appL, y + 6);
+  doc.setFontSize(5.5);
+  doc.text('OIC SUPERVISOR', pageW / 2 - 80, y + 5);
   doc.setTextColor(0,0,0);
-  doc.text('NAME AND SIGNATURES', (appLine + appEnd)/2, y + 6, { align: 'center' });
+  doc.text('NAME AND SIGNATURES', (appLine + appEnd)/2, y + 5, { align: 'center' });
 
   doc.save(res.mrfNumber + '.pdf');
 }
