@@ -86,6 +86,25 @@ function todayIso_() {
   return y + '-' + m + '-' + day;
 }
 
+// Turns a base64 PDF string (from the backend's Google Sheets export) into
+// an actual browser download. No PDF-drawing here — the bytes already ARE
+// a PDF, rendered server-side straight from the "MRF Print" tab.
+function downloadPdfFromBase64_(base64, fileName) {
+  const byteChars = atob(base64);
+  const byteNumbers = new Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+  const byteArray = new Uint8Array(byteNumbers);
+  const blob = new Blob([byteArray], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+}
+
 // ===================== FORM ELEMENTS =====================
 
 const mrfPreviewEl = document.getElementById('mrfPreview');
@@ -234,204 +253,6 @@ addItemBtn.addEventListener('click', function () {
   itemRequestedInput.focus();
 });
 
-// ===================== PRINTABLE MRF PDF (currently DISABLED on submit) =====================
-// Draws the exact printed "MATERIAL REQUEST FORM" layout. Left in place and
-// fully working, but NOT called after submit right now — per request, the
-// priority is getting the "MRF Print" Google Sheet template verified first.
-// To re-enable: uncomment the buildAndDownloadMrfPdf_(payload, res) call in
-// the submit handler below.
-
-function formatDateDisplay_(iso) {
-  if (!iso) return '';
-  const parts = iso.split('-');
-  if (parts.length !== 3) return iso;
-  return parts[1] + '/' + parts[2] + '/' + parts[0];
-}
-
-function buildAndDownloadMrfPdf_(payload, res) {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
-  const margin = 10;
-  const pageW = doc.internal.pageSize.getWidth();
-  const contentW = pageW - margin * 2;
-  let y = margin;
-
-  // ---- MRF# (top right) ----
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.setTextColor(0, 0, 0);
-  doc.text('MRF#', pageW - margin - 38, y + 5);
-  doc.setTextColor(200, 0, 0);
-  doc.text(String(res.mrfNumber).replace(/^MRF/i, ''), pageW - margin - 22, y + 5);
-  doc.setTextColor(0, 0, 0);
-  y += 9;
-
-  // ---- Title bar ----
-  doc.setFillColor(0, 0, 0);
-  doc.rect(margin, y, contentW, 9, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(15);
-  doc.text('MATERIAL REQUEST FORM', pageW / 2, y + 6.3, { align: 'center' });
-  doc.setTextColor(0, 0, 0);
-  y += 9 + 3;
-
-  // ---- Two-column field block ----
-  const rowH = 8;
-  const leftLabelX = margin;
-  const leftLineX1 = margin + 30;
-  const leftLineX2 = margin + contentW / 2 - 6;
-  const rightLabelX = margin + contentW / 2 + 4;
-  const rightLineX1 = rightLabelX + 42;
-  const rightLineX2 = margin + contentW;
-
-  function drawFieldRow(labelX, lineX1, lineX2, rowY, label, value) {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text(label, labelX, rowY + 5.5);
-    doc.setDrawColor(0);
-    doc.setLineWidth(0.25);
-    doc.line(lineX1, rowY + 6.2, lineX2, rowY + 6.2);
-    if (value) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9.5);
-      doc.text(String(value), lineX1 + 1, rowY + 5.3);
-    }
-  }
-
-  const leftFields = [
-    ['DATE:', formatDateDisplay_(payload.date)],
-    ['DEPARTMENT:', payload.requestor],
-    ['PURPOSE:', 'REQ. MATERIAL'],
-    ['LOB:', payload.lob]
-  ];
-  const rightFields = [
-    ['PROJECT NAME:', payload.projectName],
-    ['SALES ORDER:', payload.soNumber],
-    ['PROCUREMENT DEADLINE:', formatDateDisplay_(payload.procurementDeadline)],
-    ['PRODUCTION DEADLINE:', formatDateDisplay_(payload.productionDeadline)]
-  ];
-  for (let i = 0; i < 4; i++) {
-    const rowY = y + i * rowH;
-    drawFieldRow(leftLabelX, leftLineX1, leftLineX2, rowY, leftFields[i][0], leftFields[i][1]);
-    drawFieldRow(rightLabelX, rightLineX1, rightLineX2, rowY, rightFields[i][0], rightFields[i][1]);
-  }
-  y += 4 * rowH + 3;
-
-  // ---- Item table ----
-  // Proportions taken from the original form; scaled to whatever the page's
-  // content width actually is, so the table always fits edge-to-edge.
-  const colFractions = [20, 20, 30, 110, 25, 25, 33.4]; // Qty, UOM, Size, Item Description, Release, Request, Receiver
-  const fractionSum = colFractions.reduce(function (a, b) { return a + b; }, 0);
-  const colWidths = colFractions.map(function (f) { return (contentW * f) / fractionSum; });
-  const colX = [margin];
-  for (let i = 0; i < colWidths.length; i++) colX.push(colX[i] + colWidths[i]);
-
-  const h1 = 7;
-  doc.setDrawColor(0);
-  doc.setLineWidth(0.25);
-  doc.setTextColor(200, 0, 0);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-
-  // Row 1: MATERIAL DESCRIPTION / INVENTORY / END USER spans
-  const span1W = colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3];
-  const span2W = colWidths[4] + colWidths[5];
-  const span3W = colWidths[6];
-  doc.rect(colX[0], y, span1W, h1);
-  doc.text('MATERIAL DESCRIPTION', colX[0] + span1W / 2, y + 5, { align: 'center' });
-  doc.rect(colX[4], y, span2W, h1);
-  doc.text('INVENTORY', colX[4] + span2W / 2, y + 5, { align: 'center' });
-  doc.rect(colX[6], y, span3W, h1);
-  doc.text('END USER', colX[6] + span3W / 2, y + 5, { align: 'center' });
-  y += h1;
-
-  // Row 2: column headers
-  const headers = ['QTY', 'UOM', 'SIZE', 'ITEM DESCRIPTION', 'RELEASE', 'REQUEST', 'RECEIVER'];
-  const h2 = 7;
-  doc.setTextColor(0, 0, 0);
-  doc.setFontSize(7.5);
-  headers.forEach(function (h, i) {
-    doc.rect(colX[i], y, colWidths[i], h2);
-    doc.text(h, colX[i] + colWidths[i] / 2, y + 4.8, { align: 'center' });
-  });
-  y += h2;
-
-  // Item rows — Release / Request / Receiver stay blank. Always draws a
-  // fixed number of ruled rows (matching the printed form's spacing), even
-  // if this batch has fewer items than that — the extra rows stay blank
-  // rather than shrinking the table down to just the filled rows.
-  const MIN_TABLE_ROWS = 12;
-  const footerReserve = 42;
-  const pageH = doc.internal.pageSize.getHeight();
-  const totalRows = Math.max(payload.items.length, MIN_TABLE_ROWS);
-  const availableH = pageH - footerReserve - y;
-  const itemRowH = Math.max(6, Math.min(12, availableH / totalRows));
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  for (let r = 0; r < totalRows; r++) {
-    headers.forEach(function (h, i) { doc.rect(colX[i], y, colWidths[i], itemRowH); });
-    const it = payload.items[r];
-    if (it) {
-      doc.text(String(it.qty), colX[0] + colWidths[0] / 2, y + itemRowH / 2 + 1.2, { align: 'center' });
-      doc.text(String(it.uom || ''), colX[1] + colWidths[1] / 2, y + itemRowH / 2 + 1.2, { align: 'center' });
-      doc.text(String(it.size || ''), colX[2] + colWidths[2] / 2, y + itemRowH / 2 + 1.2, { align: 'center' });
-      doc.text(String(it.itemRequested), colX[3] + 2, y + itemRowH / 2 + 1.2, { align: 'left' });
-    }
-    y += itemRowH;
-  }
-
-  // ---- Footer / signatures ----
-  y = pageH - footerReserve + 6;
-  const fLeftLabelX = margin;
-  const fLeftLineX1 = margin + 30;
-  const fLeftLineX2 = margin + contentW * 0.42;
-  const fRightLabelX = margin + contentW * 0.55;
-  const fRightLineX1 = fRightLabelX + 26;
-  const fRightLineX2 = margin + contentW;
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(0, 0, 0);
-  doc.text('REQUESTED BY:', fLeftLabelX, y);
-  doc.line(fLeftLineX1, y + 0.8, fLeftLineX2, y + 0.8);
-  doc.setFont('helvetica', 'bold');
-  doc.text(String(payload.requestedBy || ''), fLeftLineX1 + 1, y - 0.8);
-
-  doc.text('CHECKED BY:', fRightLabelX, y);
-  doc.line(fRightLineX1, y + 0.8, fRightLineX2, y + 0.8);
-
-  y += 8;
-  doc.setFontSize(8);
-  doc.setTextColor(200, 0, 0);
-  doc.text('SUPERVISOR/ MANAGER', fLeftLabelX, y);
-  doc.setTextColor(200, 0, 0);
-  doc.text('INVENTORY PERSONNEL', fRightLabelX, y);
-  doc.setTextColor(0, 0, 0);
-  doc.setFont('helvetica', 'normal');
-  doc.text('NAME AND SIGNATURES', (fLeftLineX1 + fLeftLineX2) / 2, y, { align: 'center' });
-  doc.text('NAME AND SIGNATURES', (fRightLineX1 + fRightLineX2) / 2, y, { align: 'center' });
-
-  y += 10;
-  const aLabelX = margin + contentW * 0.34;
-  const aLineX1 = aLabelX + 28;
-  const aLineX2 = margin + contentW * 0.75;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.text('APPROVED BY:', aLabelX, y);
-  doc.line(aLineX1, y + 0.8, aLineX2, y + 0.8);
-
-  y += 8;
-  doc.setFontSize(8);
-  doc.setTextColor(200, 0, 0);
-  doc.text('OIC SUPERVISOR', aLabelX, y);
-  doc.setTextColor(0, 0, 0);
-  doc.setFont('helvetica', 'normal');
-  doc.text('NAME AND SIGNATURES', (aLineX1 + aLineX2) / 2, y, { align: 'center' });
-
-  doc.save(res.mrfNumber + '.pdf');
-}
-
 // ===================== SUBMIT (ONE MRF# FOR THE WHOLE BATCH) =====================
 
 submitAllBtn.addEventListener('click', async function () {
@@ -480,18 +301,17 @@ submitAllBtn.addEventListener('click', async function () {
     }
     if (res.printSheetWarning) {
       msg.innerHTML += '<br><span class="hint">' + escapeHtml(res.printSheetWarning) + '</span>';
-    } else {
-      msg.innerHTML += '<br><span class="hint">"MRF Print" Google Sheet updated.</span>';
     }
 
-    // PDF auto-download is disabled for now — see buildAndDownloadMrfPdf_
-    // above. Uncomment this block to re-enable it once the Google Sheet
-    // template is confirmed working.
-    // try {
-    //   buildAndDownloadMrfPdf_(payload, res);
-    // } catch (pdfErr) {
-    //   msg.innerHTML += '<br><span class="hint">(PDF download failed: ' + escapeHtml(pdfErr.message || String(pdfErr)) + ')</span>';
-    // }
+    if (res.mrfPdfBase64) {
+      try {
+        downloadPdfFromBase64_(res.mrfPdfBase64, res.mrfNumber + '.pdf');
+      } catch (dlErr) {
+        msg.innerHTML += '<br><span class="hint">(PDF download failed: ' + escapeHtml(dlErr.message || String(dlErr)) + ')</span>';
+      }
+    } else if (res.mrfPdfWarning) {
+      msg.innerHTML += '<br><span class="hint">' + escapeHtml(res.mrfPdfWarning) + '</span>';
+    }
 
     // Reset everything for the next request.
     pending = [];
