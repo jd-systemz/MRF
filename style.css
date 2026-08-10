@@ -1,34 +1,50 @@
+/* ===================== COLOR SYSTEM =====================
+   Deliberate contrast hierarchy instead of everything living in one
+   narrow band of dark purple-gray:
+   - bg: deep charcoal/slate, distinct from panel so cards visibly pop
+   - panel: card surface, one clear step lighter than bg
+   - panel-alt: input fill, one more step lighter than panel so fields
+     read as "things you type into" rather than blending into the card
+   - accent: a single vivid indigo used ONLY for actions/emphasis (primary
+     buttons, focus rings, the MRF# banner) — not reused for body text,
+     so it stays meaningful instead of becoming wallpaper
+   - text vs text-dim: near-white/near-black for headers & values, a
+     genuinely muted (but WCAG-legible) gray for labels/placeholders
+   - danger: crisp coral-red, reserved for required-field asterisks and
+     error states so "this needs attention" is unmistakable at a glance
+*/
 :root {
   color-scheme: dark;
-  --bg: #0b0b10;
-  --panel: #16151d;
-  --panel-alt: #1d1c26;
-  --border: #2a2833;
-  --text: #eceaf2;
-  --text-dim: #a29fb3;
-  --lavender: #b9a6ff;
-  --purple: #8b7cf6;
-  --purple-glow: rgba(139, 124, 246, 0.35);
-  --danger: #ff8a8a;
-  --success: #9be6b1;
+  --bg: #0f111a;
+  --panel: #1e202b;
+  --panel-alt: #262838;
+  --border: #383b52;
+  --border-strong: #4b4f6e;
+  --text: #f8fafc;
+  --text-dim: #94a3b8;
+  --accent: #6366f1;
+  --accent-strong: #818cf8;
+  --accent-glow: rgba(99, 102, 241, 0.35);
+  --danger: #fb7185;
+  --success: #34d399;
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f5f3fb;
+  --bg: #eef0f6;
   --panel: #ffffff;
-  --panel-alt: #f4f1fc;
-  --border: #e2dcf5;
-  --text: #2a2438;
-  --text-dim: #756c8c;
-  --lavender: #7c5cff;
-  --purple: #6d3bf0;
-  --purple-glow: rgba(124, 92, 255, 0.16);
-  --danger: #d1465d;
-  --success: #1c9d64;
+  --panel-alt: #f1f2f8;
+  --border: #d7dae4;
+  --border-strong: #b9bed0;
+  --text: #0f111a;
+  --text-dim: #5b6472;
+  --accent: #4f46e5;
+  --accent-strong: #4338ca;
+  --accent-glow: rgba(79, 70, 229, 0.22);
+  --danger: #dc2626;
+  --success: #059669;
 }
-:root[data-theme="light"] .topbar { background: linear-gradient(180deg, #ffffff, #f7f4ff); }
-:root[data-theme="light"] .card { box-shadow: 0 0 0 1px rgba(124,92,255,0.04), 0 10px 30px rgba(124,92,255,0.08); }
-:root[data-theme="light"] .btn-primary { color: #ffffff; }
+:root[data-theme="light"] .topbar { background: linear-gradient(180deg, #ffffff, #f4f5fb); }
+:root[data-theme="light"] .card { box-shadow: 0 0 0 1px rgba(79,70,229,0.05), 0 10px 30px rgba(79,70,229,0.10); }
 
 * { box-sizing: border-box; }
 body {
@@ -43,7 +59,7 @@ body {
   align-items: center;
   gap: 12px;
   padding: 16px;
-  background: linear-gradient(180deg, #141319, #0f0e13);
+  background: linear-gradient(180deg, #171926, #101119);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
@@ -53,11 +69,9 @@ body {
   font-size: 18px;
   margin: 0;
   flex: 1;
-  letter-spacing: 0.3px;
-  background: linear-gradient(90deg, var(--lavender), var(--purple));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--text); /* solid near-white, not a low-contrast gradient */
 }
 .icon-btn {
   background: var(--panel-alt);
@@ -83,22 +97,30 @@ main { padding: 18px; max-width: 640px; margin: 0 auto; }
   display: flex;
   align-items: baseline;
   gap: 8px;
-  background: var(--purple-glow);
-  border: 1px solid var(--purple);
+  background: var(--accent-glow);
+  border: 1px solid var(--accent);
   border-radius: 12px;
   padding: 12px 16px;
   margin-bottom: 18px;
 }
 .mrf-banner-label { color: var(--text-dim); font-size: 13px; }
-.mrf-banner-value { color: var(--lavender); font-size: 22px; font-weight: 700; }
+.mrf-banner-value { color: var(--accent-strong); font-size: 22px; font-weight: 800; }
 
 .divider { border: none; border-top: 1px dashed var(--border); margin: 20px 0; }
 
+/* ---- Labels & required-field markers ---- */
 .field { margin-bottom: 14px; }
-.field label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 6px; }
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
 .hint { color: var(--text-dim); font-weight: 400; }
-.req { color: var(--danger); }
+.req { color: var(--danger); font-weight: 800; } /* stands out from labels at a glance */
 
+/* ---- Inputs: clearly distinct fill + border, with a real focus state ---- */
 input[type="text"],
 input[type="number"],
 input[type="date"],
@@ -106,14 +128,23 @@ select {
   width: 100%;
   padding: 12px;
   border-radius: 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   background: var(--panel-alt);
   color: var(--text);
   font-size: 15px;
   font-family: inherit;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 select { cursor: pointer; }
-input::placeholder { color: var(--text-dim); opacity: 0.7; }
+input::placeholder { color: var(--text-dim); opacity: 0.85; }
 
 .btn {
   border: none;
@@ -121,41 +152,70 @@ input::placeholder { color: var(--text-dim); opacity: 0.7; }
   padding: 12px 18px;
   font-size: 15px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
   white-space: nowrap;
 }
-.btn-primary { background: linear-gradient(135deg, var(--purple), var(--lavender)); color: #0b0b10; }
+.btn-primary {
+  background: var(--accent);
+  color: #ffffff;
+}
+.btn-primary:hover { background: var(--accent-strong); }
 .btn-primary:active { transform: scale(0.98); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .row { display: flex; gap: 10px; margin: 0 0 14px 0; align-items: flex-start; }
 .row .field { flex: 1; margin-bottom: 0; }
 
+/* ---- Item-entry block: visually its own zone, not lost inside the card ---- */
 .line-entry {
-  padding: 14px;
-  border: 1px dashed var(--border);
+  padding: 16px;
+  background: var(--panel-alt);
+  border: 1.5px dashed var(--border-strong);
   border-radius: 12px;
 }
 
 .pending-list { margin-top: 20px; }
-.pending-list h3 { color: var(--lavender); font-size: 15px; margin-bottom: 10px; }
+.pending-list h3 { color: var(--text); font-size: 15px; font-weight: 700; margin-bottom: 10px; }
 .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 14px; }
 .line-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .line-table th, .line-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: left; color: var(--text); white-space: nowrap; }
-.line-table th { color: var(--lavender); font-weight: 600; background: var(--panel-alt); }
+.line-table th { color: var(--text-dim); font-weight: 700; background: var(--panel-alt); text-transform: uppercase; font-size: 11.5px; letter-spacing: .03em; }
 .line-table tbody tr:last-child td { border-bottom: none; }
 .line-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
 .remove-line { background: transparent; border: none; color: var(--danger); cursor: pointer; font-size: 14px; padding: 4px 8px; }
 
+/* ---- Empty state: tells the person what to do instead of showing nothing ---- */
+.empty-state {
+  display: none;
+  text-align: center;
+  padding: 22px 16px;
+  margin-bottom: 14px;
+  border: 1.5px dashed var(--border);
+  border-radius: 12px;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.empty-state.show { display: block; }
+.table-wrap.hide { display: none; }
+
 .msg { margin-top: 14px; padding: 12px; border-radius: 10px; font-size: 14px; }
-.msg.success { background: rgba(155,230,177,0.1); color: var(--success); border: 1px solid var(--success); }
-.msg.error { background: rgba(255,138,138,0.1); color: var(--danger); border: 1px solid var(--danger); }
+.msg.success { background: rgba(52,211,153,0.12); color: var(--success); border: 1px solid var(--success); }
+.msg.error { background: rgba(251,113,133,0.12); color: var(--danger); border: 1px solid var(--danger); }
 .msg.hidden { display: none; }
-.sheet-link-inline { color: var(--success); text-decoration: underline; font-weight: 600; }
+.sheet-link-inline { color: var(--success); text-decoration: underline; font-weight: 700; }
 
 .spinner {
   display: inline-block; width: 14px; height: 14px;
-  border: 2px solid var(--border); border-top-color: var(--lavender);
+  border: 2px solid var(--border); border-top-color: var(--accent);
   border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 8px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- Mobile: stack two-column rows into one column so fields get room to
+   breathe. The card itself is capped at 640px, so this only matters on
+   genuinely narrow (phone) viewports — tablet/desktop keep the row layout. ---- */
+@media (max-width: 640px) {
+  .row { flex-direction: column; gap: 14px; }
+  .row .field { width: 100%; }
+}
