@@ -350,17 +350,17 @@ submitAllBtn.addEventListener('click', async function () {
     if (pdfRes.error) throw new Error(pdfRes.error);
 
     if (pdfRes.printSheetWarning) {
-      msg.innerHTML += '<br><span class="hint">' + escapeHtml(pdfRes.printSheetWarning) + '</span>';
+      msg.innerHTML += '<br><strong style="color:var(--danger);">⚠ ' + escapeHtml(pdfRes.printSheetWarning) + '</strong>';
     }
     if (pdfRes.mrfPdfBase64) {
       downloadPdfFromBase64_(pdfRes.mrfPdfBase64, res.mrfNumber + '.pdf');
     } else if (pdfRes.mrfPdfWarning) {
-      msg.innerHTML += '<br><span class="hint">' + escapeHtml(pdfRes.mrfPdfWarning) + '</span>';
+      msg.innerHTML += '<br><strong style="color:var(--danger);">⚠ ' + escapeHtml(pdfRes.mrfPdfWarning) + '</strong>';
     }
   } catch (pdfCallErr) {
-    msg.innerHTML += '<br><span class="hint">(Print sheet / PDF step failed: ' +
+    msg.innerHTML += '<br><strong style="color:var(--danger);">⚠ Print sheet / PDF step failed: ' +
       escapeHtml(pdfCallErr.message || String(pdfCallErr)) +
-      '. Your request was still saved to Smartsheet above.)</span>';
+      ' (your request was still saved to Smartsheet above).</strong>';
   }
 });
 
