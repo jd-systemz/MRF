@@ -267,11 +267,14 @@ addItemBtn.addEventListener('click', function () {
 // 1. submitMrf        — writes Smartsheet only. Fast, reliable, is the
 //                        actual save. Its success is shown immediately and
 //                        is never retroactively hidden by anything below.
-// 2. generatePrintPdf — writes the "MRF Print" Google Sheet + exports the
-//                        PDF. Slower, more moving parts, best-effort. If it
-//                        fails, the person still sees their request was
-//                        saved — just with an extra note, not a scary
-//                        blanket failure.
+//                        Also returns rowIds — the Smartsheet row IDs just
+//                        created — which step 2 needs for the attachment.
+// 2. generatePrintPdf — writes the "MRF Print" Google Sheet, exports the
+//                        PDF, and (best-effort) attaches that PDF back onto
+//                        the Smartsheet row(s) from step 1. Slower, more
+//                        moving parts, best-effort. If any part fails, the
+//                        person still sees their request was saved — just
+//                        with an extra note, not a scary blanket failure.
 
 submitAllBtn.addEventListener('click', async function () {
   if (!pending.length) return;
@@ -343,9 +346,9 @@ submitAllBtn.addEventListener('click', async function () {
   loadMrfPreview(); // fetch a fresh preview for the next submission
   submitAllBtn.disabled = false; // free to submit the next request even while step 2 runs below
 
-  // ---- STEP 2: print sheet + PDF, best-effort, separate request. ----
+  // ---- STEP 2: print sheet + PDF + Smartsheet attachment, best-effort, separate request. ----
   try {
-    const printPayload = Object.assign({}, payload, { mrfNumber: res.mrfNumber });
+    const printPayload = Object.assign({}, payload, { mrfNumber: res.mrfNumber, rowIds: res.rowIds || [] });
     const pdfRes = await apiPost('generatePrintPdf', printPayload);
     if (pdfRes.error) throw new Error(pdfRes.error);
 
@@ -357,8 +360,11 @@ submitAllBtn.addEventListener('click', async function () {
     } else if (pdfRes.mrfPdfWarning) {
       msg.innerHTML += '<br><strong style="color:var(--danger);">⚠ ' + escapeHtml(pdfRes.mrfPdfWarning) + '</strong>';
     }
+    if (pdfRes.attachmentWarning) {
+      msg.innerHTML += '<br><strong style="color:var(--danger);">⚠ ' + escapeHtml(pdfRes.attachmentWarning) + '</strong>';
+    }
   } catch (pdfCallErr) {
-    msg.innerHTML += '<br><strong style="color:var(--danger);">⚠ Print sheet / PDF step failed: ' +
+    msg.innerHTML += '<br><strong style="color:var(--danger);">⚠ Print sheet / PDF / attachment step failed: ' +
       escapeHtml(pdfCallErr.message || String(pdfCallErr)) +
       ' (your request was still saved to Smartsheet above).</strong>';
   }
