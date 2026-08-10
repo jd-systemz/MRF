@@ -44,7 +44,7 @@ async function apiGet(action, params, _isRetry) {
   try {
     resp = await fetch(url.toString());
   } catch (networkErr) {
-    throw new Error('Could not reach the server (network/CORS error). If this just started after a backend change, the Apps Script project likely needs re-authorization + a new deployment — see mrf_backend.gs\'s setup notes.');
+    throw new Error('Could not reach the server (network/CORS error). If this just started after a backend change, the Apps Script project likely needs re-authorization + a new deployment — see Code.gs\'s setup notes.');
   }
   try {
     return await parseJsonResponse_(resp);
@@ -66,7 +66,7 @@ async function apiPost(action, payload, _isRetry) {
       body: JSON.stringify({ action: action, payload: payload })
     });
   } catch (networkErr) {
-    throw new Error('Could not reach the server (network/CORS error). If this just started after a backend change, the Apps Script project likely needs re-authorization + a new deployment — see mrf_backend.gs\'s setup notes.');
+    throw new Error('Could not reach the server (network/CORS error). If this just started after a backend change, the Apps Script project likely needs re-authorization + a new deployment — see Code.gs\'s setup notes.');
   }
   try {
     return await parseJsonResponse_(resp);
@@ -263,7 +263,15 @@ addItemBtn.addEventListener('click', function () {
   itemRequestedInput.focus();
 });
 
-// ===================== SUBMIT (ONE MRF# FOR THE WHOLE BATCH) =====================
+// ===================== SUBMIT (TWO SEPARATE CALLS) =====================
+// 1. submitMrf        — writes Smartsheet only. Fast, reliable, is the
+//                        actual save. Its success is shown immediately and
+//                        is never retroactively hidden by anything below.
+// 2. generatePrintPdf — writes the "MRF Print" Google Sheet + exports the
+//                        PDF. Slower, more moving parts, best-effort. If it
+//                        fails, the person still sees their request was
+//                        saved — just with an extra note, not a scary
+//                        blanket failure.
 
 submitAllBtn.addEventListener('click', async function () {
   if (!pending.length) return;
@@ -288,57 +296,71 @@ submitAllBtn.addEventListener('click', async function () {
   msg.classList.remove('hidden');
   msg.innerHTML = '<span class="spinner"></span> Submitting ' + pending.length + ' item(s)...';
 
+  const payload = {
+    projectName: projectName,
+    soNumber: soNumber,
+    lob: lob,
+    date: date,
+    requestor: requestor,
+    requestedBy: requestedBy,
+    procurementDeadline: procurementDeadlineInput.value,
+    productionDeadline: productionDeadline,
+    items: pending
+  };
+
+  // ---- STEP 1: Smartsheet save. If this fails, stop here — nothing else
+  // runs, the staged items stay so the person can retry without re-typing. ----
+  let res;
   try {
-    const payload = {
-      projectName: projectName,
-      soNumber: soNumber,
-      lob: lob,
-      date: date,
-      requestor: requestor,
-      requestedBy: requestedBy,
-      procurementDeadline: procurementDeadlineInput.value,
-      productionDeadline: productionDeadline,
-      items: pending
-    };
-
-    const res = await apiPost('submitMrf', payload);
+    res = await apiPost('submitMrf', payload);
     if (res.error) throw new Error(res.error);
-
-    msg.className = 'msg success';
-    msg.innerHTML = 'Submitted as <strong>MRF# ' + escapeHtml(res.mrfNumber) + '</strong> — ' + res.count + ' item(s) saved.';
-    if (res.sheetUrl) {
-      msg.innerHTML += ' <a href="' + res.sheetUrl + '" target="_blank" rel="noopener" class="sheet-link-inline">View in Smartsheet &#8599;</a>';
-    }
-    if (res.printSheetWarning) {
-      msg.innerHTML += '<br><span class="hint">' + escapeHtml(res.printSheetWarning) + '</span>';
-    }
-
-    if (res.mrfPdfBase64) {
-      try {
-        downloadPdfFromBase64_(res.mrfPdfBase64, res.mrfNumber + '.pdf');
-      } catch (dlErr) {
-        msg.innerHTML += '<br><span class="hint">(PDF download failed: ' + escapeHtml(dlErr.message || String(dlErr)) + ')</span>';
-      }
-    } else if (res.mrfPdfWarning) {
-      msg.innerHTML += '<br><span class="hint">' + escapeHtml(res.mrfPdfWarning) + '</span>';
-    }
-
-    // Reset everything for the next request.
-    pending = [];
-    renderTable();
-    projectNameInput.value = '';
-    soNumberInput.value = '';
-    lobSelect.value = lobSelect.querySelector('option[value="ACP"]') ? 'ACP' : '';
-    mrfDateInput.value = todayIso_();
-    requestorSelect.value = '';
-    requestedByInput.value = '';
-    procurementDeadlineInput.value = '';
-    productionDeadlineInput.value = '';
-    loadMrfPreview(); // fetch a fresh preview for the next submission
   } catch (err) {
     msg.className = 'msg error';
     msg.textContent = err.message || String(err);
-    submitAllBtn.disabled = false; // let them retry without losing the staged items
+    submitAllBtn.disabled = false;
+    return;
+  }
+
+  // Smartsheet save succeeded — show this NOW and reset the form for the
+  // next request. Everything below is best-effort and appends to this
+  // message; it can never erase or replace this success confirmation.
+  msg.className = 'msg success';
+  msg.innerHTML = 'Submitted as <strong>MRF# ' + escapeHtml(res.mrfNumber) + '</strong> — ' + res.count + ' item(s) saved.';
+  if (res.sheetUrl) {
+    msg.innerHTML += ' <a href="' + res.sheetUrl + '" target="_blank" rel="noopener" class="sheet-link-inline">View in Smartsheet &#8599;</a>';
+  }
+
+  pending = [];
+  renderTable();
+  projectNameInput.value = '';
+  soNumberInput.value = '';
+  lobSelect.value = lobSelect.querySelector('option[value="ACP"]') ? 'ACP' : '';
+  mrfDateInput.value = todayIso_();
+  requestorSelect.value = '';
+  requestedByInput.value = '';
+  procurementDeadlineInput.value = '';
+  productionDeadlineInput.value = '';
+  loadMrfPreview(); // fetch a fresh preview for the next submission
+  submitAllBtn.disabled = false; // free to submit the next request even while step 2 runs below
+
+  // ---- STEP 2: print sheet + PDF, best-effort, separate request. ----
+  try {
+    const printPayload = Object.assign({}, payload, { mrfNumber: res.mrfNumber });
+    const pdfRes = await apiPost('generatePrintPdf', printPayload);
+    if (pdfRes.error) throw new Error(pdfRes.error);
+
+    if (pdfRes.printSheetWarning) {
+      msg.innerHTML += '<br><span class="hint">' + escapeHtml(pdfRes.printSheetWarning) + '</span>';
+    }
+    if (pdfRes.mrfPdfBase64) {
+      downloadPdfFromBase64_(pdfRes.mrfPdfBase64, res.mrfNumber + '.pdf');
+    } else if (pdfRes.mrfPdfWarning) {
+      msg.innerHTML += '<br><span class="hint">' + escapeHtml(pdfRes.mrfPdfWarning) + '</span>';
+    }
+  } catch (pdfCallErr) {
+    msg.innerHTML += '<br><span class="hint">(Print sheet / PDF step failed: ' +
+      escapeHtml(pdfCallErr.message || String(pdfCallErr)) +
+      '. Your request was still saved to Smartsheet above.)</span>';
   }
 });
 
