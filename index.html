@@ -14,9 +14,11 @@
     </header>
     <main id="content">
       <div class="card">
-        <p class="hint" style="margin-top:-6px;">One MRF# per submission <br>— add as many items as you need below, then submit once.</p>
+        <p class="hint" style="margin-top:-6px;">One MRF# per submission — add as many items as you need below, then submit once.</p>
         <div class="mrf-banner" id="mrfBanner">
+          <span class="mrf-banner-label">MRF#</span>
           <span class="mrf-banner-value" id="mrfPreview">...</span>
+          <span class="hint">(assigned automatically on submit)</span>
         </div>
         <div class="row">
           <div class="field">
@@ -88,12 +90,13 @@
         </div>
         <div class="pending-list">
           <h3>Items in this request (<span id="itemCount">0</span>)</h3>
-          <div class="table-wrap">
+          <div class="table-wrap" id="itemTableWrap">
             <table id="itemTable" class="line-table">
               <thead><tr><th>Item</th><th>Qty</th><th>UOM</th><th>Size</th><th></th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
+          <div class="empty-state" id="itemEmptyState">No items added yet. Fill out the fields above and tap "+ Add Item".</div>
           <button type="button" id="submitAllBtn" class="btn btn-primary" style="width:100%;" disabled>Submit Request</button>
         </div>
         <div id="msg" class="msg hidden"></div>
