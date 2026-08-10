@@ -40,7 +40,12 @@ async function apiGet(action, params, _isRetry) {
   if (params) {
     Object.keys(params).forEach(function (k) { url.searchParams.set(k, params[k]); });
   }
-  const resp = await fetch(url.toString());
+  let resp;
+  try {
+    resp = await fetch(url.toString());
+  } catch (networkErr) {
+    throw new Error('Could not reach the server (network/CORS error). If this just started after a backend change, the Apps Script project likely needs re-authorization + a new deployment — see mrf_backend.gs\'s setup notes.');
+  }
   try {
     return await parseJsonResponse_(resp);
   } catch (err) {
@@ -53,11 +58,16 @@ async function apiGet(action, params, _isRetry) {
 }
 
 async function apiPost(action, payload, _isRetry) {
-  const resp = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight
-    body: JSON.stringify({ action: action, payload: payload })
-  });
+  let resp;
+  try {
+    resp = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight
+      body: JSON.stringify({ action: action, payload: payload })
+    });
+  } catch (networkErr) {
+    throw new Error('Could not reach the server (network/CORS error). If this just started after a backend change, the Apps Script project likely needs re-authorization + a new deployment — see mrf_backend.gs\'s setup notes.');
+  }
   try {
     return await parseJsonResponse_(resp);
   } catch (err) {
