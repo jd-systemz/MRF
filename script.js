@@ -234,13 +234,12 @@ addItemBtn.addEventListener('click', function () {
   itemRequestedInput.focus();
 });
 
-// ===================== PRINTABLE MRF PDF =====================
-// Draws the exact printed "MATERIAL REQUEST FORM" layout (title bar, the
-// two-column field block, the material/inventory/end-user table, and the
-// signature footer) and auto-downloads it right after a successful submit.
-// Release / Request / Receiver columns and Checked By / Approved By lines
-// are intentionally left blank — they're filled in by hand later. Purpose
-// is always "Req. Materials" since this form only ever requests materials.
+// ===================== PRINTABLE MRF PDF (currently DISABLED on submit) =====================
+// Draws the exact printed "MATERIAL REQUEST FORM" layout. Left in place and
+// fully working, but NOT called after submit right now — per request, the
+// priority is getting the "MRF Print" Google Sheet template verified first.
+// To re-enable: uncomment the buildAndDownloadMrfPdf_(payload, res) call in
+// the submit handler below.
 
 function formatDateDisplay_(iso) {
   if (!iso) return '';
@@ -481,13 +480,18 @@ submitAllBtn.addEventListener('click', async function () {
     }
     if (res.printSheetWarning) {
       msg.innerHTML += '<br><span class="hint">' + escapeHtml(res.printSheetWarning) + '</span>';
+    } else {
+      msg.innerHTML += '<br><span class="hint">"MRF Print" Google Sheet updated.</span>';
     }
 
-    try {
-      buildAndDownloadMrfPdf_(payload, res);
-    } catch (pdfErr) {
-      msg.innerHTML += '<br><span class="hint">(PDF download failed: ' + escapeHtml(pdfErr.message || String(pdfErr)) + ')</span>';
-    }
+    // PDF auto-download is disabled for now — see buildAndDownloadMrfPdf_
+    // above. Uncomment this block to re-enable it once the Google Sheet
+    // template is confirmed working.
+    // try {
+    //   buildAndDownloadMrfPdf_(payload, res);
+    // } catch (pdfErr) {
+    //   msg.innerHTML += '<br><span class="hint">(PDF download failed: ' + escapeHtml(pdfErr.message || String(pdfErr)) + ')</span>';
+    // }
 
     // Reset everything for the next request.
     pending = [];
