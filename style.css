@@ -1,50 +1,42 @@
-/* ===================== COLOR SYSTEM =====================
-   Deliberate contrast hierarchy instead of everything living in one
-   narrow band of dark purple-gray:
-   - bg: deep charcoal/slate, distinct from panel so cards visibly pop
-   - panel: card surface, one clear step lighter than bg
-   - panel-alt: input fill, one more step lighter than panel so fields
-     read as "things you type into" rather than blending into the card
-   - accent: a single vivid indigo used ONLY for actions/emphasis (primary
-     buttons, focus rings, the MRF# banner) — not reused for body text,
-     so it stays meaningful instead of becoming wallpaper
-   - text vs text-dim: near-white/near-black for headers & values, a
-     genuinely muted (but WCAG-legible) gray for labels/placeholders
-   - danger: crisp coral-red, reserved for required-field asterisks and
-     error states so "this needs attention" is unmistakable at a glance
-*/
+/* ===================== DESIGN TOKENS =====================
+   Exact values per spec — dark and light are independently defined
+   token sets, not derived/tinted from one another. */
 :root {
   color-scheme: dark;
-  --bg: #0f111a;
-  --panel: #1e202b;
-  --panel-alt: #262838;
-  --border: #383b52;
-  --border-strong: #4b4f6e;
-  --text: #f8fafc;
-  --text-dim: #94a3b8;
-  --accent: #6366f1;
-  --accent-strong: #818cf8;
+  --bg: #0f111a;              /* background.canvas */
+  --panel: #1e202b;           /* background.surface_card */
+  --panel-alt: #161821;       /* background.input_fill */
+  --border: #2d3142;          /* border.default */
+  --border-focus: #6366f1;    /* border.focus */
+  --text: #ffffff;            /* text.primary */
+  --text-dim: #94a3b8;        /* text.secondary */
+  --placeholder: #64748b;     /* text.placeholder */
+  --danger: #f43f5e;          /* text.error_required */
+  --accent: #6366f1;          /* accent.primary */
+  --accent-strong: #4f46e5;   /* accent.primary_hover */
+  --accent-text: #ffffff;     /* accent.text */
   --accent-glow: rgba(99, 102, 241, 0.35);
-  --danger: #fb7185;
   --success: #34d399;
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #eef0f6;
-  --panel: #ffffff;
-  --panel-alt: #f1f2f8;
-  --border: #d7dae4;
-  --border-strong: #b9bed0;
-  --text: #0f111a;
-  --text-dim: #5b6472;
-  --accent: #4f46e5;
-  --accent-strong: #4338ca;
-  --accent-glow: rgba(79, 70, 229, 0.22);
-  --danger: #dc2626;
+  --bg: #f8fafc;              /* background.canvas */
+  --panel: #ffffff;           /* background.surface_card */
+  --panel-alt: #f1f5f9;       /* background.input_fill */
+  --border: #cbd5e1;          /* border.default */
+  --border-focus: #4f46e5;    /* border.focus */
+  --text: #0f172a;            /* text.primary */
+  --text-dim: #475569;        /* text.secondary */
+  --placeholder: #94a3b8;     /* text.placeholder */
+  --danger: #e11d48;          /* text.error_required */
+  --accent: #4f46e5;          /* accent.primary */
+  --accent-strong: #4338ca;   /* accent.primary_hover */
+  --accent-text: #ffffff;     /* accent.text */
+  --accent-glow: rgba(79, 70, 229, 0.20);
   --success: #059669;
 }
 :root[data-theme="light"] .topbar { background: linear-gradient(180deg, #ffffff, #f4f5fb); }
-:root[data-theme="light"] .card { box-shadow: 0 0 0 1px rgba(79,70,229,0.05), 0 10px 30px rgba(79,70,229,0.10); }
+:root[data-theme="light"] .card { box-shadow: 0 0 0 1px rgba(79,70,229,0.05), 0 10px 30px rgba(79,70,229,0.08); }
 
 * { box-sizing: border-box; }
 body {
@@ -65,19 +57,20 @@ body {
   top: 0;
   z-index: 10;
 }
+:root[data-theme="light"] .topbar { border-bottom: 1px solid var(--border); }
 .topbar h1 {
   font-size: 18px;
   margin: 0;
   flex: 1;
   font-weight: 700;
   letter-spacing: 0.2px;
-  color: var(--text); /* solid near-white, not a low-contrast gradient */
+  color: var(--text); /* pure white / dark slate — solid, high-contrast, no gradient */
 }
 .icon-btn {
   background: var(--panel-alt);
   border: 1px solid var(--border);
   color: var(--text);
-  width: 38px; height: 38px;
+  width: 44px; height: 44px; /* larger touch target */
   border-radius: 10px;
   font-size: 16px;
   cursor: pointer;
@@ -104,7 +97,7 @@ main { padding: 18px; max-width: 640px; margin: 0 auto; }
   margin-bottom: 18px;
 }
 .mrf-banner-label { color: var(--text-dim); font-size: 13px; }
-.mrf-banner-value { color: var(--accent-strong); font-size: 22px; font-weight: 800; }
+.mrf-banner-value { color: var(--accent); font-size: 22px; font-weight: 800; }
 
 .divider { border: none; border-top: 1px dashed var(--border); margin: 20px 0; }
 
@@ -118,17 +111,19 @@ main { padding: 18px; max-width: 640px; margin: 0 auto; }
   margin-bottom: 6px;
 }
 .hint { color: var(--text-dim); font-weight: 400; }
-.req { color: var(--danger); font-weight: 800; } /* stands out from labels at a glance */
+.req { color: var(--danger); font-weight: 800; }
 
-/* ---- Inputs: clearly distinct fill + border, with a real focus state ---- */
+/* ---- Inputs: distinct fill, visible border, real focus state, larger
+   touch targets (min-height 48px is the standard accessible minimum) ---- */
 input[type="text"],
 input[type="number"],
 input[type="date"],
 select {
   width: 100%;
-  padding: 12px;
+  min-height: 48px;
+  padding: 12px 14px;
   border-radius: 10px;
-  border: 1px solid var(--border-strong);
+  border: 1.5px solid var(--border);
   background: var(--panel-alt);
   color: var(--text);
   font-size: 15px;
@@ -140,16 +135,17 @@ input[type="number"]:focus,
 input[type="date"]:focus,
 select:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--border-focus);
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 select { cursor: pointer; }
-input::placeholder { color: var(--text-dim); opacity: 0.85; }
+input::placeholder { color: var(--placeholder); opacity: 1; }
 
 .btn {
   border: none;
   border-radius: 10px;
-  padding: 12px 18px;
+  padding: 14px 18px;
+  min-height: 48px;
   font-size: 15px;
   cursor: pointer;
   font-weight: 700;
@@ -157,7 +153,7 @@ input::placeholder { color: var(--text-dim); opacity: 0.85; }
 }
 .btn-primary {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--accent-text);
 }
 .btn-primary:hover { background: var(--accent-strong); }
 .btn-primary:active { transform: scale(0.98); }
@@ -170,7 +166,7 @@ input::placeholder { color: var(--text-dim); opacity: 0.85; }
 .line-entry {
   padding: 16px;
   background: var(--panel-alt);
-  border: 1.5px dashed var(--border-strong);
+  border: 1.5px dashed var(--border);
   border-radius: 12px;
 }
 
@@ -178,13 +174,13 @@ input::placeholder { color: var(--text-dim); opacity: 0.85; }
 .pending-list h3 { color: var(--text); font-size: 15px; font-weight: 700; margin-bottom: 10px; }
 .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 14px; }
 .line-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.line-table th, .line-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: left; color: var(--text); white-space: nowrap; }
+.line-table th, .line-table td { padding: 12px 10px; border-bottom: 1px solid var(--border); text-align: left; color: var(--text); white-space: nowrap; }
 .line-table th { color: var(--text-dim); font-weight: 700; background: var(--panel-alt); text-transform: uppercase; font-size: 11.5px; letter-spacing: .03em; }
 .line-table tbody tr:last-child td { border-bottom: none; }
-.line-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
-.remove-line { background: transparent; border: none; color: var(--danger); cursor: pointer; font-size: 14px; padding: 4px 8px; }
+.line-table tbody tr:nth-child(even) { background: rgba(148,163,184,0.06); }
+.remove-line { background: transparent; border: none; color: var(--danger); cursor: pointer; font-size: 16px; padding: 8px; min-width: 40px; min-height: 40px; }
 
-/* ---- Empty state: tells the person what to do instead of showing nothing ---- */
+/* ---- Empty state ---- */
 .empty-state {
   display: none;
   text-align: center;
@@ -201,7 +197,7 @@ input::placeholder { color: var(--text-dim); opacity: 0.85; }
 
 .msg { margin-top: 14px; padding: 12px; border-radius: 10px; font-size: 14px; }
 .msg.success { background: rgba(52,211,153,0.12); color: var(--success); border: 1px solid var(--success); }
-.msg.error { background: rgba(251,113,133,0.12); color: var(--danger); border: 1px solid var(--danger); }
+.msg.error { background: rgba(244,63,94,0.12); color: var(--danger); border: 1px solid var(--danger); }
 .msg.hidden { display: none; }
 .sheet-link-inline { color: var(--success); text-decoration: underline; font-weight: 700; }
 
@@ -212,10 +208,18 @@ input::placeholder { color: var(--text-dim); opacity: 0.85; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ---- Mobile: stack two-column rows into one column so fields get room to
-   breathe. The card itself is capped at 640px, so this only matters on
-   genuinely narrow (phone) viewports — tablet/desktop keep the row layout. ---- */
+/* ---- Mobile: single-column stacking + larger touch targets everywhere ---- */
 @media (max-width: 640px) {
   .row { flex-direction: column; gap: 14px; }
   .row .field { width: 100%; }
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  select {
+    min-height: 52px;
+    padding: 14px;
+    font-size: 16px; /* prevents iOS auto-zoom on focus */
+  }
+  .btn { min-height: 52px; padding: 15px 18px; }
+  .remove-line { min-width: 44px; min-height: 44px; }
 }
