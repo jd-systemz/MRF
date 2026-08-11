@@ -12,7 +12,7 @@
   --text-dim: #94a3b8;        /* text.secondary */
   --placeholder: #64748b;     /* text.placeholder */
   --danger: #f43f5e;          /* text.error_required */
-  --accent: #dcdde8;          /* accent.primary */
+  --accent: #b7b7c4;          /* accent.primary */
   --accent-strong: #4f46e5;   /* accent.primary_hover */
   --accent-text: #ffffff;     /* accent.text */
   --accent-glow: rgba(99, 102, 241, 0.35);
@@ -112,6 +112,10 @@ main { padding: 18px; max-width: 640px; margin: 0 auto; }
 }
 .hint { color: var(--text-dim); font-weight: 400; }
 .req { color: var(--danger); font-weight: 800; }
+
+/* Generic show/hide utility — used e.g. for the Production Deadline
+   asterisk, which only appears once SO# has a value. */
+.hidden { display: none !important; }
 
 /* ---- Inputs: distinct fill, visible border, real focus state, larger
    touch targets (min-height 48px is the standard accessible minimum) ---- */
