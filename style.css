@@ -12,7 +12,7 @@
   --text-dim: #94a3b8;        /* text.secondary */
   --placeholder: #64748b;     /* text.placeholder */
   --danger: #f43f5e;          /* text.error_required */
-  --accent: #b7b7c4;          /* accent.primary */
+  --accent: #6366f1;          /* accent.primary */
   --accent-strong: #4f46e5;   /* accent.primary_hover */
   --accent-text: #ffffff;     /* accent.text */
   --accent-glow: rgba(99, 102, 241, 0.35);
@@ -163,7 +163,7 @@ input::placeholder { color: var(--placeholder); opacity: 1; }
 .btn-primary:active { transform: scale(0.98); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-.row { display: flex; gap: 10px; margin: 0 0 14px 0; align-items: flex-start; }
+.row { display: flex; gap: 10px; margin: 0 0 14px 0; align-items: flex-end; }
 .row .field { flex: 1; margin-bottom: 0; }
 
 /* ---- Item-entry block: visually its own zone, not lost inside the card ---- */
