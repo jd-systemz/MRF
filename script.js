@@ -127,6 +127,7 @@ const requestorErrorEl = document.getElementById('requestorError');
 const requestedByInput = document.getElementById('requestedBy');
 const procurementDeadlineInput = document.getElementById('procurementDeadline');
 const productionDeadlineInput = document.getElementById('productionDeadline');
+const productionDeadlineReqEl = document.getElementById('productionDeadlineReq');
 
 const itemRequestedInput = document.getElementById('itemRequested');
 const itemRequestedListEl = document.getElementById('itemRequestedList');
@@ -143,6 +144,17 @@ const submitAllBtn = document.getElementById('submitAllBtn');
 const msg = document.getElementById('msg');
 
 let pending = [];
+
+// ===================== CONDITIONAL REQUIREMENT: Production Deadline =====================
+// Only required once SO# has a value — keeps the visible asterisk in sync
+// with the actual validation rule below so the form never silently
+// requires something the label doesn't show as required (or vice versa).
+
+function updateProductionDeadlineRequirement_() {
+  const soFilled = soNumberInput.value.trim() !== '';
+  productionDeadlineReqEl.classList.toggle('hidden', !soFilled);
+}
+soNumberInput.addEventListener('input', updateProductionDeadlineRequirement_);
 
 // ===================== MRF# PREVIEW =====================
 // Unreserved — just shows what the number WOULD be right now (already
@@ -301,7 +313,7 @@ submitAllBtn.addEventListener('click', async function () {
   if (!date) { alert('Date is required.'); return; }
   if (!requestor) { alert('Select a Requestor.'); return; }
   if (!requestedBy) { alert('Requested by (full name) is required.'); return; }
-  if (!productionDeadline) { alert('Production Deadline is required.'); return; }
+  if (soNumber && !productionDeadline) { alert('Production Deadline is required once SO# is filled in.'); return; }
 
   submitAllBtn.disabled = true;
   msg.className = 'msg';
@@ -346,6 +358,7 @@ submitAllBtn.addEventListener('click', async function () {
   renderTable();
   projectNameInput.value = '';
   soNumberInput.value = '';
+  updateProductionDeadlineRequirement_();
   lobSelect.value = lobSelect.querySelector('option[value="ACP"]') ? 'ACP' : '';
   mrfDateInput.value = todayIso_();
   requestorSelect.value = '';
@@ -383,6 +396,7 @@ submitAllBtn.addEventListener('click', async function () {
 
 renderTable();
 mrfDateInput.value = todayIso_();
+updateProductionDeadlineRequirement_();
 loadMrfPreview();
 loadLobOptions();
 loadRequestorOptions();
