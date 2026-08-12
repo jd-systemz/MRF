@@ -156,7 +156,7 @@ input::placeholder { color: var(--placeholder); opacity: 1; }
   white-space: nowrap;
 }
 .btn-primary {
-  background: var(--accent);
+  background: #522081;
   color: var(--accent-text);
 }
 .btn-primary:hover { background: var(--accent-strong); }
